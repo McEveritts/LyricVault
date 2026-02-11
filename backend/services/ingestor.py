@@ -1,6 +1,7 @@
 import yt_dlp
 import os
 import shutil
+import glob
 import requests
 import re
 from fastapi import HTTPException
@@ -12,10 +13,17 @@ def _find_ffmpeg_dir():
     env_dir = os.environ.get("FFMPEG_DIR")
     if env_dir and os.path.isdir(env_dir):
         return env_dir
-    # 2. Known WinGet installation path (development)
-    winget_path = r"C:\Users\McEveritts\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-8.0.1-full_build\bin"
-    if os.path.isdir(winget_path):
-        return winget_path
+    # 2. Dynamically discover WinGet-installed FFmpeg (works for any user)
+    app_data = os.environ.get("LOCALAPPDATA", "")
+    if app_data:
+        winget_base = os.path.join(app_data, "Microsoft", "WinGet", "Packages")
+        if os.path.isdir(winget_base):
+            for pkg_dir in os.listdir(winget_base):
+                if "FFmpeg" in pkg_dir:
+                    bin_candidates = glob.glob(os.path.join(winget_base, pkg_dir, "**", "bin"), recursive=True)
+                    for bin_dir in bin_candidates:
+                        if os.path.isfile(os.path.join(bin_dir, "ffmpeg.exe")):
+                            return bin_dir
     # 3. System PATH
     if shutil.which("ffmpeg"):
         return os.path.dirname(shutil.which("ffmpeg"))
@@ -163,7 +171,10 @@ class IngestionService:
                 logger.debug(f"Found {len(results)} results for {platform}")
                 return results
         except Exception as e:
-            logger.error(f"Search failed for {platform}: {str(e)}", exc_info=True)
+            msg = str(e)
+            logger.error(f"Search failed for {platform}: {msg}")
+            if "No supported JavaScript runtime" in msg:
+                logger.warning("YT-DLP search may be limited due to missing JS runtime. Consider installing Node.js or Deno.")
             return []
 
 ingestor = IngestionService()

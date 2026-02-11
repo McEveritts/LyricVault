@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import API_BASE from '../config/api';
 
 const DiscoveryView = ({ onIngest }) => {
     const [query, setQuery] = useState('');
@@ -14,7 +15,7 @@ const DiscoveryView = ({ onIngest }) => {
         setLoading(true);
         setError(null);
         try {
-            const response = await fetch(`http://localhost:8000/search?q=${encodeURIComponent(query)}&platform=${platform}`);
+            const response = await fetch(`${API_BASE}/search?q=${encodeURIComponent(query)}&platform=${platform}`);
             if (response.ok) {
                 const data = await response.json();
                 setResults(data);
@@ -110,7 +111,7 @@ const SearchResultItem = ({ result, onIngest }) => {
     const handleIngest = async () => {
         setIngesting(true);
         try {
-            const response = await fetch('http://localhost:8000/ingest', {
+            const response = await fetch(`${API_BASE}/ingest`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ url: result.url }),
@@ -134,7 +135,7 @@ const SearchResultItem = ({ result, onIngest }) => {
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                 />
                 <div className="absolute top-2 right-2 px-2 py-1 rounded-lg bg-black/60 backdrop-blur-md text-[10px] font-bold text-white uppercase tracking-widest border border-white/10">
-                    {Math.floor(result.duration / 60)}:{(result.duration % 60).toString().padStart(2, '0')}
+                    {result.duration ? `${Math.floor(result.duration / 60)}:${(result.duration % 60).toString().padStart(2, '0')}` : '--:--'}
                 </div>
                 {/* Platform Badge */}
                 <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">

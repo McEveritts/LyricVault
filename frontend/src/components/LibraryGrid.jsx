@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import API_BASE from '../config/api';
 
 const LibraryGrid = ({ refreshTrigger, onPlay, onView }) => {
     const [songs, setSongs] = useState([]);
@@ -6,7 +7,7 @@ const LibraryGrid = ({ refreshTrigger, onPlay, onView }) => {
     useEffect(() => {
         const fetchLibrary = async () => {
             try {
-                const response = await fetch('http://localhost:8000/library');
+                const response = await fetch(`${API_BASE}/library`);
                 if (response.ok) {
                     const data = await response.json();
                     setSongs(data);

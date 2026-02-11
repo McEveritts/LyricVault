@@ -8,7 +8,8 @@ The API key is resolved via the settings service:
   User-configured key (settings.json) → GEMINI_API_KEY env var → disabled
 
 Rate limit handling:
-  Automatic retry with exponential backoff on 429/ResourceExhausted errors.
+  Automatic retry with exponential backoff on 429/ResourceExhausted
+  and transient server errors (500/503).
 """
 
 import os
@@ -18,9 +19,67 @@ from google.genai import types
 from .settings_service import get_gemini_api_key, get_gemini_model, get_available_models
 
 
-# Rate limit config
+# ── Rate limit config ─────────────────────────────────────────────────
 MAX_RETRIES = 3
 BASE_DELAY = 2  # seconds
+
+
+# ── Shared safety settings ────────────────────────────────────────────
+# Song lyrics routinely contain profanity, violence, substance references,
+# and sexually explicit language. Default safety filters silently refuse
+# these requests, causing "lyrics not found" false negatives.
+# BLOCK_ONLY_HIGH allows legitimate lyric content through while still
+# blocking genuinely dangerous / illegal content.
+_PERMISSIVE_SAFETY = [
+    types.SafetySetting(
+        category="HARM_CATEGORY_DANGEROUS_CONTENT",
+        threshold="BLOCK_ONLY_HIGH",
+    ),
+    types.SafetySetting(
+        category="HARM_CATEGORY_HARASSMENT",
+        threshold="BLOCK_ONLY_HIGH",
+    ),
+    types.SafetySetting(
+        category="HARM_CATEGORY_HATE_SPEECH",
+        threshold="BLOCK_ONLY_HIGH",
+    ),
+    types.SafetySetting(
+        category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
+        threshold="BLOCK_ONLY_HIGH",
+    ),
+]
+
+
+# ── Per-task GenerationConfigs ────────────────────────────────────────
+# System instructions are set here (not in the user prompt) so the model
+# treats them as higher-priority directives and enables implicit caching.
+
+LYRICS_RESEARCH_CONFIG = types.GenerateContentConfig(
+    system_instruction=(
+        "You are a precise music lyrics database. "
+        "Reproduce published song lyrics exactly as written, "
+        "with proper line breaks between verses. "
+        "Never fabricate, paraphrase, or approximate lyrics. "
+        "If you do not know the exact lyrics, respond only with: LYRICS_NOT_FOUND"
+    ),
+    temperature=0.2,       # Low — factual recall, not creative writing
+    top_p=0.8,
+    safety_settings=_PERMISSIVE_SAFETY,
+)
+
+AUDIO_TRANSCRIPTION_CONFIG = types.GenerateContentConfig(
+    system_instruction=(
+        "You are a professional audio transcription engine. "
+        "Listen carefully and transcribe the sung lyrics verbatim. "
+        "Format with proper line breaks between verses. "
+        "Include [Verse], [Chorus], [Bridge] markers where identifiable. "
+        "If the audio is instrumental or unintelligible, "
+        "respond only with: TRANSCRIPTION_FAILED"
+    ),
+    temperature=0.1,       # Very low — transcription demands precision
+    top_p=0.9,
+    safety_settings=_PERMISSIVE_SAFETY,
+)
 
 
 class GeminiService:
@@ -80,8 +139,8 @@ class GeminiService:
 
     def _call_with_retry(self, call_fn):
         """
-        Execute a Gemini API call with automatic retry on rate limit errors.
-        Uses exponential backoff: 2s, 4s, 8s.
+        Execute a Gemini API call with automatic retry on rate limit
+        and transient server errors.  Exponential backoff: 2s, 4s, 8s.
         """
         last_error = None
         for attempt in range(MAX_RETRIES + 1):
@@ -95,10 +154,18 @@ class GeminiService:
                     or "rate limit" in error_str
                     or "quota" in error_str
                 )
+                is_server_error = (
+                    "500" in error_str
+                    or "503" in error_str
+                    or "internal" in error_str
+                    or "unavailable" in error_str
+                )
+                is_retryable = is_rate_limit or is_server_error
                 last_error = e
-                if is_rate_limit and attempt < MAX_RETRIES:
+                if is_retryable and attempt < MAX_RETRIES:
                     delay = BASE_DELAY * (2 ** attempt)
-                    print(f"[Gemini] Rate limited (attempt {attempt + 1}/{MAX_RETRIES + 1}). "
+                    reason = "Rate limited" if is_rate_limit else "Server error"
+                    print(f"[Gemini] {reason} (attempt {attempt + 1}/{MAX_RETRIES + 1}). "
                           f"Retrying in {delay}s...")
                     time.sleep(delay)
                 else:
@@ -113,45 +180,39 @@ class GeminiService:
             if status_callback: status_callback("Gemini API key missing")
             return None
 
-        prompt = f"""You are a music research assistant. I need help finding the lyrics for:
-
-Song: "{track_name}"
-Artist: "{artist_name}"
-
-Please search your knowledge for the complete lyrics to this song. 
-If you know the lyrics, provide them in a clean format with line breaks.
-If you're not certain about the exact lyrics, respond with "LYRICS_NOT_FOUND".
-Do not make up or guess lyrics - only provide them if you're confident they're accurate."""
+        # User query only — system role is in LYRICS_RESEARCH_CONFIG
+        prompt = f'Find the complete published lyrics for "{track_name}" by "{artist_name}".'
 
         try:
             def _call():
                 if status_callback: status_callback(f"Researching: {track_name}...")
                 return self.client.models.generate_content(
                     model=self.model,
-                    contents=prompt
+                    contents=prompt,
+                    config=LYRICS_RESEARCH_CONFIG,
                 )
 
             response = self._call_with_retry(_call)
+
+            # Check finish_reason before inspecting text
+            if response.candidates and response.candidates[0].finish_reason != "STOP":
+                reason = response.candidates[0].finish_reason if response.candidates else "UNKNOWN"
+                print(f"[Gemini] Request filtered/refused (finish_reason={reason}) for {track_name}")
+                return None
+
             result = response.text.strip()
 
-            result_lower = result.lower()
-            refusal_phrases = [
-                "lyrics_not_found",
-                "i don't have",
-                "i cannot",
-                "i am unable",
-                "unfortunately",
-                "copyright",
-                "i apologize",
-                "i'm sorry",
-                "as an ai",
-                "cannot provide"
-            ]
-            
-            if any(phrase in result_lower for phrase in refusal_phrases):
-
-                print(f"Gemini research: Lyrics not found for {track_name}")
-                return None
+            # Only check refusal phrases on SHORT responses (real lyrics are >100 chars)
+            if len(result) < 100:
+                refusal_phrases = [
+                    "lyrics_not_found",
+                    "i don't have",
+                    "i cannot",
+                    "cannot provide",
+                ]
+                if any(phrase in result.lower() for phrase in refusal_phrases):
+                    print(f"Gemini research: Lyrics not found for {track_name}")
+                    return None
 
             print(f"Gemini research: Found lyrics for {track_name}")
             return result
@@ -192,21 +253,13 @@ Do not make up or guess lyrics - only provide them if you're confident they're a
             }
             mime_type = mime_types.get(ext, "audio/mpeg")
 
-            context = ""
+            # Build a concise user query — system role is in AUDIO_TRANSCRIPTION_CONFIG
+            context_parts = []
             if track_name:
-                context += f"Song: {track_name}\n"
+                context_parts.append(track_name)
             if artist_name:
-                context += f"Artist: {artist_name}\n"
-
-            prompt = f"""Listen to this audio file and transcribe the lyrics.
-
-{context}
-Please provide:
-1. The complete lyrics as sung in the audio
-2. Format with proper line breaks between verses
-3. Include [Verse], [Chorus], [Bridge] markers if you can identify them
-
-If the audio is instrumental or you cannot understand the lyrics clearly, respond with "TRANSCRIPTION_FAILED"."""
+                context_parts.append(f"by {artist_name}")
+            prompt = f'Transcribe: {" ".join(context_parts)}' if context_parts else "Transcribe the lyrics from this audio."
 
             audio_part = types.Part.from_bytes(
                 data=audio_bytes,
@@ -217,10 +270,18 @@ If the audio is instrumental or you cannot understand the lyrics clearly, respon
                 if status_callback: status_callback(f"Uploading audio ({file_size_mb:.1f}MB) & Analyzing...")
                 return self.client.models.generate_content(
                     model=self.model,
-                    contents=[prompt, audio_part]
+                    contents=[prompt, audio_part],
+                    config=AUDIO_TRANSCRIPTION_CONFIG,
                 )
 
             response = self._call_with_retry(_call)
+
+            # Check finish_reason before inspecting text
+            if response.candidates and response.candidates[0].finish_reason != "STOP":
+                reason = response.candidates[0].finish_reason if response.candidates else "UNKNOWN"
+                print(f"[Gemini] Transcription filtered (finish_reason={reason}) for {track_name or audio_file_path}")
+                return None
+
             result = response.text.strip()
 
             if "TRANSCRIPTION_FAILED" in result:

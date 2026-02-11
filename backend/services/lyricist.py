@@ -39,7 +39,6 @@ class LyricistService:
         """
         
         # === Step 1: Try syncedlyrics ===
-        # === Step 1: Try syncedlyrics ===
         if status_callback: status_callback("Searching lyric databases...")
         lyrics = self._try_syncedlyrics(track_name, artist_name, status_callback)
         if lyrics:

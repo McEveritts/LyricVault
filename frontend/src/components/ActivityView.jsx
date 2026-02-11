@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import API_BASE from '../config/api';
 
 const ActivityView = () => {
     const [tasks, setTasks] = useState([]);
@@ -10,7 +11,7 @@ const ActivityView = () => {
 
     useEffect(() => {
         // Fetch library to get stats
-        fetch('http://localhost:8000/library')
+        fetch(`${API_BASE}/library`)
             .then(res => res.json())
             .then(data => {
                 setSystemInfo(prev => ({
@@ -160,8 +161,8 @@ const SystemComponent = ({ name, status, description }) => (
             <p className="text-slate-500 text-xs">{description}</p>
         </div>
         <span className={`text-xs px-2 py-1 rounded ${status === 'online'
-                ? 'bg-green-500/10 text-green-400'
-                : 'bg-red-500/10 text-red-400'
+            ? 'bg-green-500/10 text-green-400'
+            : 'bg-red-500/10 text-red-400'
             }`}>
             {status}
         </span>

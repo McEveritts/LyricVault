@@ -2,10 +2,8 @@ fastapi
 uvicorn
 yt-dlp
 sqlalchemy
-beautifulsoup4
 requests
 python-multipart
-spotipy
 python-dotenv
 google-genai
 syncedlyrics

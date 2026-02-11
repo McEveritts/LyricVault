@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import API_BASE from '../config/api';
 
 const ProcessingView = () => {
     const [songs, setSongs] = useState([]);
@@ -9,14 +10,14 @@ const ProcessingView = () => {
         const fetchData = async () => {
             try {
                 // Fetch library for overall status
-                const libRes = await fetch('http://localhost:8000/library');
+                const libRes = await fetch(`${API_BASE}/library`);
                 if (libRes.ok) {
                     const data = await libRes.json();
                     setSongs(data);
                 }
 
                 // Fetch active tasks for live progress
-                const taskRes = await fetch('http://localhost:8000/tasks');
+                const taskRes = await fetch(`${API_BASE}/tasks`);
                 if (taskRes.ok) {
                     const data = await taskRes.json();
                     setTasks(data);

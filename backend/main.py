@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
 from urllib.parse import quote
 import time
+import threading
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -32,7 +33,7 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-from database.database import init_db, get_db
+from database.database import init_db, get_db, SessionLocal
 from database import models
 from services.ingestor import ingestor
 from services.lyricist import lyricist
@@ -41,8 +42,25 @@ from services import settings_service
 
 app = FastAPI(title="LyricVault API", version="0.1.5")
 
-# In-memory task tracking
-active_tasks = {}
+# In-memory task tracking (thread-safe)
+_task_lock = threading.Lock()
+active_tasks: dict[str, dict] = {}
+
+def update_task(task_id: str, **fields):
+    """Thread-safe update of an active task's fields."""
+    with _task_lock:
+        if task_id in active_tasks:
+            active_tasks[task_id].update(fields)
+
+def register_task(task_id: str, task_data: dict):
+    """Thread-safe registration of a new task."""
+    with _task_lock:
+        active_tasks[task_id] = task_data
+
+def remove_task(task_id: str):
+    """Thread-safe removal of a task."""
+    with _task_lock:
+        active_tasks.pop(task_id, None)
 
 # Mount downloads directory to serve audio files
 # Ensure directory exists
@@ -52,8 +70,8 @@ app.mount("/stream", StaticFiles(directory="downloads"), name="stream")
 # CORS Setup
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
-    allow_credentials=True,
+    allow_origins=["http://localhost:5173", "http://localhost:8000", "app://."],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -82,14 +100,33 @@ def on_startup():
     
 @app.post("/ingest", response_model=SongResponse)
 async def ingest_song(request: IngestRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    # 0. Validate URL
+    url = request.url.strip()
+    if not url:
+        raise HTTPException(status_code=400, detail="URL cannot be empty")
+
+    # Check for duplicate ingestion
+    existing = db.query(models.Song).filter(models.Song.source_url == url).first()
+    if existing:
+        filename = os.path.basename(existing.file_path) if existing.file_path else ""
+        stream_url = f"http://localhost:8000/stream/{quote(filename)}" if filename else ""
+        return {
+            "id": existing.id,
+            "title": existing.title,
+            "artist": existing.artist.name if existing.artist else "Unknown",
+            "lyrics_status": "ready" if existing.lyrics else "unavailable",
+            "stream_url": stream_url,
+            "cover_url": existing.cover_url
+        }
+
     # 1. Parse URL & Identify Platform
-    platform = ingestor.parse_url(request.url)
+    platform = ingestor.parse_url(url)
     if not platform:
          raise HTTPException(status_code=400, detail="Unsupported platform")
          
     # 2. Download Audio
     try:
-        metadata = ingestor.download_audio(request.url)
+        metadata = ingestor.download_audio(url)
     except HTTPException:
         raise  # Already a proper HTTP error — don't re-wrap
     except Exception as e:
@@ -111,7 +148,7 @@ async def ingest_song(request: IngestRequest, background_tasks: BackgroundTasks,
             artist_id=artist.id,
             file_path=metadata['file_path'],
             duration=metadata['duration'],
-            source_url=request.url,
+            source_url=url,
             lyrics_synced=False,
             cover_url=metadata.get('cover_url')
         )
@@ -122,13 +159,13 @@ async def ingest_song(request: IngestRequest, background_tasks: BackgroundTasks,
 
     # 3. Fetch Lyrics (Background Task)
     task_id = f"lyrics_{song.id}"
-    active_tasks[task_id] = {
+    register_task(task_id, {
         "id": task_id,
         "type": "lyrics",
         "title": song.title,
         "status": "processing",
         "progress": 10
-    }
+    })
 
     # Pass metadata for search, including file_path for audio transcription fallback
     background_tasks.add_task(process_lyrics, song.id, metadata['title'], metadata['artist'], metadata['file_path'])
@@ -148,29 +185,23 @@ async def ingest_song(request: IngestRequest, background_tasks: BackgroundTasks,
 def process_lyrics(song_id: int, title: str, artist: str, file_path: str = None):
     """Background task to fetch lyrics using multi-source approach"""
     task_id = f"lyrics_{song_id}"
-    db_gen = get_db()
-    db = next(db_gen)
+    db = SessionLocal()
     try:
-        if task_id in active_tasks:
-            active_tasks[task_id]["progress"] = 30
-            active_tasks[task_id]["status"] = "Searching databases..."
+        update_task(task_id, progress=30, status="Searching databases...")
 
         # Define callback to update task status in real-time
-        def update_status(msg):
+        def status_callback(msg):
             print(f"[{task_id}] Status update: {msg}")
-            if task_id in active_tasks:
-                active_tasks[task_id]["status"] = msg
-                # Optional: Guess progress based on message content for better UX?
-                if "Uploading" in msg: active_tasks[task_id]["progress"] = 40
-                if "Analyzing" in msg: active_tasks[task_id]["progress"] = 60
-                if "Researching" in msg: active_tasks[task_id]["progress"] = 50
+            fields = {"status": msg}
+            if "Uploading" in msg: fields["progress"] = 40
+            elif "Analyzing" in msg: fields["progress"] = 60
+            elif "Researching" in msg: fields["progress"] = 50
+            update_task(task_id, **fields)
 
         # Pass file_path to enable audio transcription fallback
-        lyrics = lyricist.transcribe(title, artist, file_path, status_callback=update_status)
-        
-        if task_id in active_tasks:
-            active_tasks[task_id]["progress"] = 80
-            active_tasks[task_id]["status"] = "Finalizing..."
+        lyrics = lyricist.transcribe(title, artist, file_path, status_callback=status_callback)
+
+        update_task(task_id, progress=80, status="Finalizing...")
 
         song = db.get(models.Song, song_id)
         if song:
@@ -178,25 +209,16 @@ def process_lyrics(song_id: int, title: str, artist: str, file_path: str = None)
                 song.lyrics = lyrics
                 song.lyrics_synced = True
                 print(f"Lyrics found for {title}")
-                if task_id in active_tasks:
-                    active_tasks[task_id]["status"] = "Complete"
-                    active_tasks[task_id]["progress"] = 100
+                update_task(task_id, status="Complete", progress=100)
             else:
                 song.lyrics = "Lyrics not found."
-                if task_id in active_tasks:
-                    active_tasks[task_id]["status"] = "Failed"
-                    active_tasks[task_id]["progress"] = 100
+                update_task(task_id, status="Failed", progress=100)
             db.commit()
     except Exception as e:
         print(f"Error processing lyrics: {e}")
-        if task_id in active_tasks:
-            active_tasks[task_id]["status"] = f"Error: {str(e)}"
+        update_task(task_id, status=f"Error: {str(e)}")
     finally:
-        # Keep task in list for a bit then remove (or just leave it)
-        try:
-            next(db_gen)
-        except StopIteration:
-            pass
+        db.close()
 
 @app.post("/retry_lyrics/{song_id}")
 async def retry_lyrics(song_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
@@ -224,70 +246,50 @@ async def research_lyrics_manual(song_id: int, request: ModelRequest, db: Sessio
     
     # Register task for Sidebar visibility
     task_id = f"manual_{song.id}_{int(time.time())}"
-    
+    register_task(task_id, {
+        "id": task_id,
+        "type": "manual_research",
+        "title": f"Researching: {song.title}",
+        "status": "Starting...",
+        "progress": 0
+    })
+
+    def manual_status_update(msg):
+        update_task(task_id, status=msg)
+
     # Temporarily override selected model if provided
     original_model = settings_service.get_gemini_model()
     try:
         settings_service.set_gemini_model(request.model_id)
-        
+
         lyrics = None
         # Mode: Auto (Research -> Transcribe)
         if request.mode == "auto":
             # Try Research
-            if task_id in active_tasks: active_tasks[task_id]["status"] = "AI Researching..."
-            lyrics = lyricist._try_gemini_research(song.title, song.artist.name)
-            
+            update_task(task_id, status="AI Researching...")
+            lyrics = lyricist._try_gemini_research(song.title, song.artist.name, manual_status_update)
+
             # If research failed, try transcription if audio exists
             if not lyrics and song.file_path and os.path.exists(song.file_path):
-                 if task_id in active_tasks: active_tasks[task_id]["status"] = "Research failed. Transcribing..."
-                 lyrics = lyricist._try_gemini_transcription(song.file_path, song.title, song.artist.name)
-        
+                update_task(task_id, status="Research failed. Transcribing...")
+                lyrics = lyricist._try_gemini_transcription(song.file_path, song.title, song.artist.name, manual_status_update)
+
         # Mode: Transcribe (Force Audio Transcription)
         elif request.mode == "transcribe":
             if song.file_path and os.path.exists(song.file_path):
                 print(f"Forcing audio transcription for: {song.title}")
-                if task_id in active_tasks: active_tasks[task_id]["status"] = "Uploading & Transcribing..." 
-                # We need to pass a callback here too if we want real-time updates for manual research
-                # But manual research is currently synchronous in this endpoint (active_tasks is for background)
-                # This endpoint returns the lyrics directly. 
-                # HOWEVER, the UI might be polling tasks? 
-                # Actually, `research_lyrics_manual` is POST and awaits response. 
-                # The "Processing Queue" shows background tasks.
-                # If we want the manual research to show up in "Processing Queue" we need to add it to `active_tasks`.
-                
-                # Let's register a temp task for manual research so it shows up in the sidebar!
-                active_tasks[task_id] = {
-                    "id": task_id,
-                    "type": "manual_research",
-                    "title": f"Researching: {song.title}",
-                    "status": "Starting...",
-                    "progress": 0
-                }
-                
-                def manual_status_update(msg):
-                    if task_id in active_tasks:
-                        active_tasks[task_id]["status"] = msg
-                
-                try:
-                    lyrics = lyricist._try_gemini_transcription(song.file_path, song.title, song.artist.name, status_callback=manual_status_update)
-                finally:
-                    # Clean up task
-                    if task_id in active_tasks:
-                         del active_tasks[task_id]
-                if not lyrics:
-                    # Fallback to research if transcription fails????? 
-                    # User asked for transcription specifically, maybe we should just fail?
-                    # Let's keep it strict for now to respect the "Force" intent.
-                    pass
+                update_task(task_id, status="Uploading & Transcribing...")
+                lyrics = lyricist._try_gemini_transcription(song.file_path, song.title, song.artist.name, status_callback=manual_status_update)
             else:
+                remove_task(task_id)
                 return {"status": "failed", "message": "Audio file not found for transcription."}
 
     finally:
         # Restore original setting
         settings_service.set_gemini_model(original_model)
+        remove_task(task_id)
     
     if lyrics:
-
         song.lyrics = lyrics
         song.lyrics_synced = False
         db.commit()

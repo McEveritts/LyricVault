@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import API_BASE from '../config/api';
 
 // Google Pixel "Monet" inspired pastel colors for badges
 const TIER_COLORS = {
@@ -28,7 +29,7 @@ const SettingsView = () => {
 
     const fetchKeyStatus = async () => {
         try {
-            const res = await fetch('http://localhost:8000/settings/gemini-key');
+            const res = await fetch(`${API_BASE}/settings/gemini-key`);
             const data = await res.json();
             setKeyStatus(data);
         } catch (err) {
@@ -38,7 +39,7 @@ const SettingsView = () => {
 
     const fetchModels = async () => {
         try {
-            const res = await fetch('http://localhost:8000/settings/models');
+            const res = await fetch(`${API_BASE}/settings/models`);
             const data = await res.json();
             setModels(data.models || []);
             setSelectedModel(data.selected || '');
@@ -52,7 +53,7 @@ const SettingsView = () => {
         setSaving(true);
         setMessage(null);
         try {
-            const res = await fetch('http://localhost:8000/settings/gemini-key', {
+            const res = await fetch(`${API_BASE}/settings/gemini-key`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ api_key: apiKey })
@@ -77,7 +78,7 @@ const SettingsView = () => {
         setTesting(true);
         setMessage(null);
         try {
-            const res = await fetch('http://localhost:8000/settings/test-gemini-key', {
+            const res = await fetch(`${API_BASE}/settings/test-gemini-key`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ api_key: apiKey })
@@ -99,7 +100,7 @@ const SettingsView = () => {
         setDeleting(true);
         setMessage(null);
         try {
-            const res = await fetch('http://localhost:8000/settings/gemini-key', {
+            const res = await fetch(`${API_BASE}/settings/gemini-key`, {
                 method: 'DELETE'
             });
             const data = await res.json();
@@ -117,7 +118,7 @@ const SettingsView = () => {
     const handleModelSelect = async (modelId) => {
         setSavingModel(true);
         try {
-            const res = await fetch('http://localhost:8000/settings/models', {
+            const res = await fetch(`${API_BASE}/settings/models`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ model_id: modelId })

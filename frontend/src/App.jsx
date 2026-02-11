@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import API_BASE from './config/api';
 import MagicPaste from './components/MagicPaste';
 import LibraryGrid from './components/LibraryGrid';
 import Player from './components/Player';
@@ -31,7 +32,7 @@ export default function App() {
 
   const fetchSongDetails = async (song) => {
     try {
-      const response = await fetch(`http://localhost:8000/song/${song.id}`);
+      const response = await fetch(`${API_BASE}/song/${song.id}`);
       if (response.ok) {
         return await response.json();
       }

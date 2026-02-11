@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import API_BASE from '../config/api';
 
 const SongDetailView = ({ song, isPlaying, onPlayPause, isEmpty, currentTime }) => {
     const [activeTab, setActiveTab] = useState('lyrics');
@@ -12,7 +13,7 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, isEmpty, currentTime }) 
     useEffect(() => {
         const fetchModels = async () => {
             try {
-                const res = await fetch('http://localhost:8000/settings/models');
+                const res = await fetch(`${API_BASE}/settings/models`);
                 if (res.ok) {
                     const data = await res.json();
                     setAvailableModels(data.models);
@@ -252,7 +253,7 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, isEmpty, currentTime }) 
                                                                 setResearching(true);
                                                                 setStatusMsg("AI is researching...");
                                                                 try {
-                                                                    const res = await fetch(`http://localhost:8000/research_lyrics/${song.id}`, {
+                                                                    const res = await fetch(`${API_BASE}/research_lyrics/${song.id}`, {
                                                                         method: 'POST',
                                                                         headers: { 'Content-Type': 'application/json' },
                                                                         body: JSON.stringify({ model_id: selectedModel })
@@ -326,7 +327,7 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, isEmpty, currentTime }) 
                                                         setResearching(true);
                                                         setStatusMsg(transcriptionMode ? "Listening & Transcribing..." : "AI is researching...");
                                                         try {
-                                                            const res = await fetch(`http://localhost:8000/research_lyrics/${song.id}`, {
+                                                            const res = await fetch(`${API_BASE}/research_lyrics/${song.id}`, {
                                                                 method: 'POST',
                                                                 headers: { 'Content-Type': 'application/json' },
                                                                 body: JSON.stringify({

@@ -82,7 +82,7 @@ const Player = ({
                 {/* Controls */}
                 <div className="flex flex-col items-center flex-1 gap-2">
                     <div className="flex items-center gap-6">
-                        <button className="text-google-text-secondary hover:text-google-text transition-colors">
+                        <button className="text-google-text-secondary/30 cursor-not-allowed" title="Previous track — coming soon" disabled>
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
                                 <path d="M9.195 18.44c1.25.713 2.805-.19 2.805-1.629v-2.873h8.17c.266 0 .52-.103.707-.29.188-.187.292-.44.292-.707V11.201c0-.266-.104-.52-.292-.707-.187-.187-.44-.29-.707-.29H12V7.189c0-1.44-1.555-2.342-2.805-1.628L2.81 9.771a1.88 1.88 0 00.324 3.016l6.06 3.653z" />
                             </svg>
@@ -103,7 +103,7 @@ const Player = ({
                             )}
                         </button>
 
-                        <button className="text-google-text-secondary hover:text-google-text transition-colors">
+                        <button className="text-google-text-secondary/30 cursor-not-allowed" title="Next track — coming soon" disabled>
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
                                 <path d="M5.055 7.06c-1.25-.714-2.805.189-2.805 1.628v2.873H-5.918c-.266 0-.52.103-.707.29-.187.187-.292.44-.292.707v.592c0 .265.105.519.292.707.187.187.441.29.707.29H2.25v3.189c0 1.44 1.555 2.342 2.805 1.628l6.384-4.212a1.88 1.88 0 00-.324-3.016L5.055 7.06z" />
                                 <path fillRule="evenodd" d="M14.008 12c0-2.61 1.498-4.887 3.69-6 .319-.162.708-.047.87.27.163.319.048.707-.27.87a5.503 5.503 0 000 9.72c.318.163.433.551.27.87-.162.318-.551.432-.87.27-2.192-1.113-3.69-3.39-3.69-6z" clipRule="evenodd" />

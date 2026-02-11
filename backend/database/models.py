@@ -1,9 +1,10 @@
 from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Boolean
-from sqlalchemy.orm import relationship
-from sqlalchemy.ext.declarative import declarative_base
-from datetime import datetime
+from sqlalchemy.orm import relationship, DeclarativeBase
+from datetime import datetime, timezone
 
-Base = declarative_base()
+
+class Base(DeclarativeBase):
+    pass
 
 class Artist(Base):
     __tablename__ = "artists"
@@ -44,7 +45,7 @@ class Song(Base):
     platform_id = Column(String, nullable=True) # Spotify/Apple ID if applicable
     cover_url = Column(String, nullable=True) # URL to album art
     
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     artist = relationship("Artist", back_populates="songs")
     album = relationship("Album", back_populates="songs")

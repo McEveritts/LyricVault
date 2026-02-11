@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import API_BASE from '../config/api';
 
 const MagicPaste = ({ onIngestSuccess }) => {
     const [url, setUrl] = useState('');
@@ -11,7 +12,7 @@ const MagicPaste = ({ onIngestSuccess }) => {
         setError(null);
 
         try {
-            const response = await fetch('http://localhost:8000/ingest', {
+            const response = await fetch(`${API_BASE}/ingest`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import API_BASE from '../config/api';
 
 const LyricsOverlay = ({ song, isOpen, onClose }) => {
     const contentRef = useRef(null);
@@ -38,7 +39,7 @@ const LyricsOverlay = ({ song, isOpen, onClose }) => {
     const handleResearch = async () => {
         setIsResearching(true);
         try {
-            const response = await fetch(`http://localhost:8000/research_lyrics/${song.id}`, {
+            const response = await fetch(`${API_BASE}/research_lyrics/${song.id}`, {
                 method: 'POST'
             });
             const data = await response.json();
