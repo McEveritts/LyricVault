@@ -44,6 +44,12 @@ def test_stream_blocks_path_traversal():
         "../main.py",
         "..%2Fmain.py",
         "%2E%2E%2Fmain.py",
+        r"..\\main.py",
+        "..%5cmain.py",
+        "%2e%2e%5cmain.py",
+        "..%255cmain.py",
+        "..%2F..%2Fmain.py",
+        "..%5C..%5Clyricvault_v2.db",
     ]
     with TestClient(app) as client:
         for path in traversal_paths:
