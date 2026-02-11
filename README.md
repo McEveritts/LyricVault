@@ -16,34 +16,31 @@ Stop relying on streaming services that change metadata or remove tracks. Build 
 
 ---
 
-## 🚀 New in v0.1.4
+## 🚀 New in v0.1.5
 
-### 🎧 Multimodal AI Transcription (Gemini 2.0)
+### 🧠 Smarter AI Communication
 
-If a text search for lyrics fails, LyricVault now leverages Gemini's multimodal capabilities to **listen** to your audio files directly and transcribe them with human-level accuracy. Perfect for rare tracks, remixes, and live recordings.
+- **System Instructions**: Dedicated prompts for Research vs. Transcription improve accuracy and cut token waste.
+- **Safety Settings**: Explicit lyrics are no longer silently blocked by content filters.
+- **Server Error Retries**: Gemini 500/503 errors are now auto-retried alongside rate limits.
 
-### 🔑 API Key Testing
+### 🔒 Backend Resilience
 
-- **Instant Validation**: Verify your Gemini API key works perfectly before saving it, with a new **Test API Key** button in Settings.
+- **Thread-Safe Tasks**: Background processing is now guarded by a threading lock — no more race conditions.
+- **Duplicate Detection**: Re-pasting a URL returns the existing song instead of duplicating it.
+- **Dynamic FFmpeg**: Auto-discovered from WinGet packages on any Windows machine.
+- **Tightened CORS**: Wildcard origin replaced with a specific allowlist.
 
-### 🎨 Brand New Visual Identity
+### 🎨 Frontend Polish
 
-We have officially unveiled the **Space Bass** logo!
+- **Centralized API Config**: Single `API_BASE` constant replaces all hardcoded URLs.
+- **Player UI**: Prev/Next buttons visually disabled with "coming soon" tooltips.
+- **Discovery View**: Graceful `--:--` when duration is unavailable.
 
-- **New Logo**: A sleek, golden-accented mark that reflects our premium "sanctuary" aesthetic.
-- **UI Refinements**: Glassmorphism and gold highlights (`#E2C286`) have been tuned for better legibility across all views.
+### 🧹 Housekeeping
 
-### ⚡ Live Processing Engine
-
-Watch your library come alive.
-
-- **Real-Time Progress**: The updated **Processing View** shows live progress bars for every task—from downloading audio to AI lyric transcription.
-- **Background Workers**: Queue up dozens of songs and let LyricVault handle the heavy lifting.
-
-### 💼 Enhanced Distribution
-
-- **Portable .exe**: Official support for standalone execution. Carry your library on a USB without needing an installer.
-- **Improved Installer**: Streamlined setup process for Windows.
+- Removed `beautifulsoup4` and `spotipy` dependencies.
+- Migrated deprecated SQLAlchemy `declarative_base()` and `datetime.utcnow`.
 
 ---
 
@@ -76,10 +73,10 @@ Inspired by the Google Pixel 10 Pro and deep house vibes:
 Grab the latest release from the `releases` folder or build it yourself.
 
 **Option A: Installer**
-Run `LyricVault Setup 0.1.4.exe` to install to your system.
+Run `LyricVault Setup 0.1.5.exe` to install to your system.
 
 **Option B: Portable**
-Run `LyricVault 0.1.4.exe` to launch instantly.
+Run `LyricVault 0.1.5.exe` to launch instantly.
 
 ### 2. Configuration
 
