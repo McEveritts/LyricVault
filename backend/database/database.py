@@ -1,7 +1,10 @@
 import os
+import logging
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from .models import Base
+
+logger = logging.getLogger(__name__)
 
 # Resolve absolute path for database
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

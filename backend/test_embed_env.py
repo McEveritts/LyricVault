@@ -1,5 +1,6 @@
 import sys
 import os
+from dotenv import load_dotenv
 
 # Add site-packages to path if not already there (mimic what the app does if needed)
 # In embedded python, site-packages should be auto-discovered if layout is standard.
@@ -18,8 +19,11 @@ except ImportError:
 try:
     from google import genai
     print(f"Google GenAI Version: {genai.__version__}")
-    
-    KEY = "AIzaSyDB2aXqih9PtJyxy8tcuUQ0XXvXJhmkaEY"
+
+    load_dotenv()
+    KEY = os.getenv("GEMINI_API_KEY")
+    if not KEY:
+        raise RuntimeError("GEMINI_API_KEY is not set in environment")
     client = genai.Client(api_key=KEY)
     response = client.models.generate_content(
         model="gemini-2.0-flash",

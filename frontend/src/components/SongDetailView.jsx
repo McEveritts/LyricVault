@@ -1,3 +1,5 @@
+import React, { useEffect, useRef, useState } from 'react';
+import API_BASE from '../config/api';
 import Visualizer from './Visualizer';
 
 const SongDetailView = ({ song, isPlaying, onPlayPause, isEmpty, currentTime, analyser }) => {
@@ -268,7 +270,7 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, isEmpty, currentTime, an
                                                                     } else {
                                                                         setStatusMsg(data.message || "Research failed.");
                                                                     }
-                                                                } catch (err) {
+                                                                } catch {
                                                                     setStatusMsg("Connection error.");
                                                                 } finally {
                                                                     setResearching(false);
@@ -346,7 +348,7 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, isEmpty, currentTime, an
                                                             } else {
                                                                 setStatusMsg(data.message || "Research failed.");
                                                             }
-                                                        } catch (err) {
+                                                        } catch {
                                                             setStatusMsg("Connection error.");
                                                         } finally {
                                                             setResearching(false);

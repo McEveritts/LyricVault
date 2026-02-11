@@ -86,22 +86,22 @@ class LyricistService:
                 
         return None
     
-    def _try_gemini_research(self, track_name: str, artist_name: str, status_callback=None) -> str | None:
+    def _try_gemini_research(self, track_name: str, artist_name: str, status_callback=None, model_id: str | None = None) -> str | None:
         """Try Gemini AI knowledge-based lyric lookup"""
         if not gemini_service.is_available():
             print("[Gemini] Service not available (API key not set)")
             return None
             
         print(f"[Gemini] Researching lyrics for: {track_name} by {artist_name}")
-        return gemini_service.research_lyrics(track_name, artist_name, status_callback)
+        return gemini_service.research_lyrics(track_name, artist_name, status_callback, model_id=model_id)
     
-    def _try_gemini_transcription(self, file_path: str, track_name: str, artist_name: str, status_callback=None) -> str | None:
+    def _try_gemini_transcription(self, file_path: str, track_name: str, artist_name: str, status_callback=None, model_id: str | None = None) -> str | None:
         """Try Gemini AI audio transcription"""
         if not gemini_service.is_available():
             print("[Gemini] Service not available (API key not set)")
             return None
             
         print(f"[Gemini] Transcribing audio: {file_path}")
-        return gemini_service.transcribe_audio(file_path, track_name, artist_name, status_callback)
+        return gemini_service.transcribe_audio(file_path, track_name, artist_name, status_callback, model_id=model_id)
 
 lyricist = LyricistService()

@@ -6,7 +6,7 @@ import socket
 import os
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, and_
+from sqlalchemy import text
 from database.database import SessionLocal
 from database import models
 from services.ingestor import ingestor
@@ -89,6 +89,7 @@ class Worker:
                     ORDER BY created_at ASC 
                     LIMIT 1
                 )
+                RETURNING id
             """)
             
             result = db.execute(stmt, {
@@ -96,16 +97,14 @@ class Worker:
                 "lease_end": lease_end,
                 "now": now
             })
+            row = result.first()
             db.commit()
 
-            if result.rowcount == 0:
+            if not row:
                 return False
 
-            # Fetch the job we just claimed
-            job = db.query(models.Job).filter(
-                models.Job.worker_id == self.worker_id,
-                models.Job.status == "processing"
-            ).first()
+            job_id = row[0]
+            job = db.get(models.Job, job_id)
 
             if not job:
                 return False
@@ -219,8 +218,26 @@ class Worker:
         title = payload.get("title")
         artist = payload.get("artist")
         file_path = payload.get("file_path")
+        mode = payload.get("mode", "auto")
+        model_id = payload.get("model_id")
 
-        lyrics = lyricist.transcribe(title, artist, file_path)
+        if not job.title and title:
+            job.title = f"Lyrics: {artist or 'Unknown'} - {title}"
+            db.commit()
+
+        if mode == "transcribe":
+            if not file_path or not os.path.exists(file_path):
+                raise ValueError("Audio file not found for transcription.")
+            lyrics = lyricist._try_gemini_transcription(file_path, title, artist, model_id=model_id)
+        elif mode == "research":
+            lyrics = lyricist._try_gemini_research(title, artist, model_id=model_id)
+        elif model_id:
+            # Respect explicit model selection when manually queued.
+            lyrics = lyricist._try_gemini_research(title, artist, model_id=model_id)
+            if not lyrics and file_path and os.path.exists(file_path):
+                lyrics = lyricist._try_gemini_transcription(file_path, title, artist, model_id=model_id)
+        else:
+            lyrics = lyricist.transcribe(title, artist, file_path)
         
         song = db.get(models.Song, song_id)
         if song:

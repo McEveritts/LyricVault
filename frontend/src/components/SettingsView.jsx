@@ -107,6 +107,8 @@ const SettingsView = () => {
             if (res.ok) {
                 setMessage({ type: 'success', text: data.message });
                 fetchKeyStatus();
+            } else {
+                setMessage({ type: 'error', text: data.detail || data.message || 'Failed to remove key.' });
             }
         } catch {
             setMessage({ type: 'error', text: 'Failed to remove key.' });

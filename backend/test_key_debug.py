@@ -1,10 +1,15 @@
 """Quick debug script to test Gemini API key validation."""
 import sys
+import os
 sys.path.append(".")
 
+from dotenv import load_dotenv
 from google import genai
 
-KEY = "AIzaSyDB2aXqih9PtJyxy8tcuUQ0XXvXJhmkaEY"
+load_dotenv()
+KEY = os.getenv("GEMINI_API_KEY")
+if not KEY:
+    raise RuntimeError("GEMINI_API_KEY is not set in environment")
 
 print(f"Testing key: {KEY[:8]}...{KEY[-4:]}")
 print(f"google-genai version: {genai.__version__}")

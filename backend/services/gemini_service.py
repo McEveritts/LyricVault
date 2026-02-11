@@ -186,7 +186,7 @@ class GeminiService:
                 else:
                     raise last_error
 
-    def research_lyrics(self, track_name: str, artist_name: str, status_callback=None) -> str | None:
+    def research_lyrics(self, track_name: str, artist_name: str, status_callback=None, model_id: str | None = None) -> str | None:
         """
         Use Gemini to research and find published lyrics for a song.
         This is a fallback when syncedlyrics database search fails.
@@ -197,12 +197,13 @@ class GeminiService:
 
         # User query only — system role is in LYRICS_RESEARCH_CONFIG
         prompt = f'Find the complete published lyrics for "{track_name}" by "{artist_name}".'
+        selected_model = model_id or self.model
 
         try:
             def _call():
                 if status_callback: status_callback(f"Researching: {track_name}...")
                 return self.client.models.generate_content(
-                    model=self.model,
+                    model=selected_model,
                     contents=prompt,
                     config=LYRICS_RESEARCH_CONFIG,
                 )
@@ -236,7 +237,7 @@ class GeminiService:
             print(f"Gemini research error: {e}")
             return None
 
-    def transcribe_audio(self, audio_file_path: str, track_name: str = None, artist_name: str = None, status_callback=None) -> str | None:
+    def transcribe_audio(self, audio_file_path: str, track_name: str = None, artist_name: str = None, status_callback=None, model_id: str | None = None) -> str | None:
         """
         Use Gemini's multimodal capabilities to transcribe lyrics from audio.
         """
@@ -281,10 +282,12 @@ class GeminiService:
                 mime_type=mime_type
             )
 
+            selected_model = model_id or self.model
+
             def _call():
                 if status_callback: status_callback(f"Uploading audio ({file_size_mb:.1f}MB) & Analyzing...")
                 return self.client.models.generate_content(
-                    model=self.model,
+                    model=selected_model,
                     contents=[prompt, audio_part],
                     config=AUDIO_TRANSCRIPTION_CONFIG,
                 )

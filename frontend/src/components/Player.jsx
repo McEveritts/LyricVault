@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import Visualizer from './Visualizer';
 
 const Player = ({
@@ -30,14 +30,14 @@ const Player = ({
                 audioRef.current.pause();
             }
         }
-    }, [isPlaying, currentSong]);
+    }, [isPlaying, currentSong, audioRef]);
 
     // Sync Volume
     useEffect(() => {
         if (audioRef.current) {
             audioRef.current.volume = volume;
         }
-    }, [volume]);
+    }, [volume, audioRef]);
 
     // Handle Song Change
     useEffect(() => {
@@ -45,7 +45,7 @@ const Player = ({
             audioRef.current.src = currentSong.stream_url;
             audioRef.current.load();
         }
-    }, [currentSong]);
+    }, [currentSong, audioRef]);
 
     const handleTimeUpdate = () => {
         if (audioRef.current && onTimeUpdate) {
