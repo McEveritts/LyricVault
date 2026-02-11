@@ -103,25 +103,11 @@ AVAILABLE_MODELS = [
         "tier": "quality",
     },
     {
-        "id": "gemini-3.0-flash",
-        "name": "Gemini 3.0 Flash",
-        "description": "Next-gen fast model — optimal speed and quality",
+        "id": "gemini-2.0-flash",
+        "name": "Gemini 2.0 Flash",
+        "description": "Optimal speed and quality — fast and reliable",
         "rate_limit": "15 RPM / 1,500 RPD",
         "tier": "recommended",
-    },
-    {
-        "id": "gemini-2.0-flash",
-        "name": "Gemini 2.0 Flash (Stable)",
-        "description": "High performance stable workhorse — fast and reliable",
-        "rate_limit": "15 RPM / 1,500 RPD",
-        "tier": "stable",
-    },
-    {
-        "id": "gemini-2.0-flash-preview-05-20",
-        "name": "Gemini 2.0 Flash (Preview)",
-        "description": "Cutting-edge preview — latest capabilities",
-        "rate_limit": "10 RPM / 500 RPD",
-        "tier": "preview",
     },
 ]
 

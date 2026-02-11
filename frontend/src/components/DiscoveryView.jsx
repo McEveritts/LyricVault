@@ -37,23 +37,34 @@ const DiscoveryView = ({ onIngest }) => {
                         <p className="text-google-text-secondary text-sm mt-1">Search and ingest from across the web</p>
                     </div>
 
-                    <form onSubmit={handleSearch} className="flex-1 max-w-2xl flex items-center bg-google-surface rounded-full border border-google-surface-high shadow-lg focus-within:ring-2 focus-within:ring-google-gold transition-all">
-                        <select
-                            value={platform}
-                            onChange={(e) => setPlatform(e.target.value)}
-                            className="bg-transparent text-google-text-secondary text-xs font-bold uppercase tracking-widest pl-6 pr-2 focus:outline-none border-r border-white/5 h-12 cursor-pointer hover:text-google-text transition-colors"
-                        >
-                            <option value="youtube">YouTube</option>
-                            <option value="spotify">Spotify</option>
-                            <option value="soundcloud">SoundCloud</option>
-                        </select>
+                    <form onSubmit={handleSearch} className="flex-1 max-w-2xl flex items-center bg-google-surface rounded-full border border-google-surface-high shadow-lg focus-within:ring-2 focus-within:ring-google-gold transition-all relative">
+                        <div className="relative group">
+                            <select
+                                value={platform}
+                                onChange={(e) => setPlatform(e.target.value)}
+                                className="appearance-none bg-transparent text-google-text-secondary text-[10px] font-bold uppercase tracking-widest pl-8 pr-12 focus:outline-none border-r border-white/5 h-12 cursor-pointer hover:text-google-text transition-colors z-10 relative"
+                            >
+                                <option value="youtube">YouTube</option>
+                                <option value="spotify">Spotify</option>
+                                <option value="soundcloud">SoundCloud</option>
+                            </select>
+                            <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-xs">
+                                {platform === 'youtube' ? '🔴' : platform === 'spotify' ? '🟢' : '🟠'}
+                            </div>
+                            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-google-text-secondary group-hover:text-google-text transition-colors">
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </div>
+                        </div>
                         <input
                             type="text"
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
-                            placeholder={`Search on ${platform.charAt(0).toUpperCase() + platform.slice(1)}...`}
-                            className="flex-1 px-4 py-3 bg-transparent text-google-text placeholder-google-text-secondary/40 focus:outline-none text-sm"
+                            placeholder={`Search for music on ${platform.charAt(0).toUpperCase() + platform.slice(1)}...`}
+                            className="flex-1 px-6 py-3 bg-transparent text-google-text placeholder-google-text-secondary/30 focus:outline-none text-sm"
                         />
+
                         <button
                             type="submit"
                             disabled={loading || !query.trim()}
@@ -165,8 +176,8 @@ const SearchResultItem = ({ result, onIngest }) => {
                     onClick={handleIngest}
                     disabled={ingesting}
                     className={`px-4 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-2 ${ingesting
-                            ? 'bg-google-surface-high text-google-text-secondary'
-                            : 'bg-white/5 text-white hover:bg-google-gold hover:text-black shadow-inner'
+                        ? 'bg-google-surface-high text-google-text-secondary'
+                        : 'bg-white/5 text-white hover:bg-google-gold hover:text-black shadow-inner'
                         }`}
                 >
                     {ingesting ? (

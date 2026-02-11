@@ -1,8 +1,8 @@
-# ![LyricVault Logo](./frontend/public/logo.svg) LyricVault v0.1.3
+# ![LyricVault Logo](./frontend/public/logo.svg) LyricVault v0.1.4
 
 ## The Ultimate Local Music Sanctuary — Powered by AI
 
-[![Version](https://img.shields.io/badge/version-0.1.2-E2C286?style=for-the-badge)](https://github.com/McEveritts/LyricVault)
+[![Version](https://img.shields.io/badge/version-0.1.4-E2C286?style=for-the-badge)](https://github.com/McEveritts/LyricVault)
 [![License: MIT](https://img.shields.io/badge/License-MIT-E2C286?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Build: Portable & Installer](https://img.shields.io/badge/Build-Portable%20%2B%20Installer-2B2D31?style=for-the-badge)](https://github.com/McEveritts/LyricVault/releases)
 
@@ -16,38 +16,34 @@ Stop relying on streaming services that change metadata or remove tracks. Build 
 
 ---
 
-## 🚀 New in v0.1.2
+## 🚀 New in v0.1.4
 
-### 🌍 Universal Discovery using "Magic Paste"
+### 🎧 Multimodal AI Transcription (Gemini 2.0)
 
-Search and ingest music from anywhere. The new **Discover Tab** supports:
+If a text search for lyrics fails, LyricVault now leverages Gemini's multimodal capabilities to **listen** to your audio files directly and transcribe them with human-level accuracy. Perfect for rare tracks, remixes, and live recordings.
 
-- **YouTube** (Video & Audio)
-- **Spotify** (Metadata & Matching)
-- **SoundCloud** (Direct Integration)
-- **Direct URL**: Just paste a link from any source into the **Magic Paste** bar.
+### 🔑 API Key Testing
 
-### 🧠 AI-Powered Lyricist (Gemini)
+- **Instant Validation**: Verify your Gemini API key works perfectly before saving it, with a new **Test API Key** button in Settings.
+
+### 🎨 Brand New Visual Identity
+
+We have officially unveiled the **Space Bass** logo!
+
+- **New Logo**: A sleek, golden-accented mark that reflects our premium "sanctuary" aesthetic.
+- **UI Refinements**: Glassmorphism and gold highlights (`#E2C286`) have been tuned for better legibility across all views.
 
 ### ⚡ Live Processing Engine
 
 Watch your library come alive.
 
-- **Real-Time Progress**: The new **Processing View** shows live progress bars for every task—from downloading audio to AI lyric transcription.
+- **Real-Time Progress**: The updated **Processing View** shows live progress bars for every task—from downloading audio to AI lyric transcription.
 - **Background Workers**: Queue up dozens of songs and let LyricVault handle the heavy lifting.
 
-### 🧠 Gemini 2.0 Intelligence
+### 💼 Enhanced Distribution
 
-Powered by Google's latest **Gemini 2.0 Flash** model:
-
-- **Manual Research**: Missing lyrics? Click the new **✨ Research with Gemini** button to force a deep search using AI.
-- **Multimodal Transcription**: If text search fails, the AI *listens* to the audio file to transcribe lyrics with human-level accuracy.
-
-### 💼 Portable Mode
-
-Take your sanctuary with you.
-
-- **Portable .exe**: Now available alongside the standard installer. Run LyricVault from a USB drive or cloud folder without installation.
+- **Portable .exe**: Official support for standalone execution. Carry your library on a USB without needing an installer.
+- **Improved Installer**: Streamlined setup process for Windows.
 
 ---
 
@@ -80,10 +76,10 @@ Inspired by the Google Pixel 10 Pro and deep house vibes:
 Grab the latest release from the `releases` folder or build it yourself.
 
 **Option A: Installer**
-Run `LyricVault Setup 0.1.2.exe` to install to your system.
+Run `LyricVault Setup 0.1.4.exe` to install to your system.
 
 **Option B: Portable**
-Run `LyricVault 0.1.2.exe` to launch instantly.
+Run `LyricVault 0.1.4.exe` to launch instantly.
 
 ### 2. Configuration
 

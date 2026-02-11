@@ -137,11 +137,16 @@ class IngestionService:
         }.get(platform, "ytsearch5:")
 
         search_query = f"{search_prefix}{query}"
+        logger.info(f"Searching {platform} with query: {search_query}")
         
         try:
-            with yt_dlp.YoutubeDL({'quiet': True, 'noplaylist': True}) as ydl:
+            with yt_dlp.YoutubeDL({'quiet': True, 'noplaylist': True, 'ffmpeg_location': FFMPEG_DIR}) as ydl:
                 info = ydl.extract_info(search_query, download=False)
                 results = []
+                if not info or 'entries' not in info:
+                    logger.warning(f"No results found for {platform}")
+                    return []
+
                 for entry in info.get('entries', []):
                     if entry:
                         results.append({
@@ -153,9 +158,10 @@ class IngestionService:
                             "thumbnail": entry.get('thumbnail'),
                             "platform": platform
                         })
+                logger.debug(f"Found {len(results)} results for {platform}")
                 return results
         except Exception as e:
-            print(f"Search failed for {platform}: {e}")
+            logger.error(f"Search failed for {platform}: {str(e)}", exc_info=True)
             return []
 
 ingestor = IngestionService()

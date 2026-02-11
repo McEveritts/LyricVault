@@ -42,9 +42,11 @@ win:
     - target: nsis
       arch:
         - x64
+      artifactName: "LyricVault Setup ${version}.${ext}"
     - target: portable
       arch:
         - x64
+      artifactName: "LyricVault ${version}.${ext}"
   signAndEditExecutable: false
   forceCodeSigning: false
 

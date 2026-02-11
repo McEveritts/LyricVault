@@ -19,6 +19,7 @@ const SettingsView = () => {
     const [models, setModels] = useState([]);
     const [selectedModel, setSelectedModel] = useState('');
     const [savingModel, setSavingModel] = useState(false);
+    const [testing, setTesting] = useState(false);
 
     useEffect(() => {
         fetchKeyStatus();
@@ -68,6 +69,29 @@ const SettingsView = () => {
             setMessage({ type: 'error', text: 'Connection error. Is the backend running?' });
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleTestKey = async () => {
+        if (!apiKey.trim()) return;
+        setTesting(true);
+        setMessage(null);
+        try {
+            const res = await fetch('http://localhost:8000/settings/test-gemini-key', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ api_key: apiKey })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setMessage({ type: 'success', text: data.message });
+            } else {
+                setMessage({ type: 'error', text: data.detail || 'Test failed' });
+            }
+        } catch {
+            setMessage({ type: 'error', text: 'Connection error. Is the backend running?' });
+        } finally {
+            setTesting(false);
         }
     };
 
@@ -205,7 +229,7 @@ const SettingsView = () => {
                             </div>
                         )}
 
-                        <div className="pt-2">
+                        <div className="pt-2 flex items-center gap-4">
                             <a
                                 href="https://aistudio.google.com/apikey"
                                 target="_blank"
@@ -215,6 +239,14 @@ const SettingsView = () => {
                                 Get a free API key
                                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
                             </a>
+                            <button
+                                onClick={handleTestKey}
+                                disabled={testing || !apiKey.trim()}
+                                className="inline-flex items-center gap-1.5 text-xs font-medium text-google-gold hover:text-google-gold-light transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {testing ? 'Testing...' : 'Test API Key'}
+                                {!testing && <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                            </button>
                         </div>
                     </div>
                 </section>
@@ -281,7 +313,7 @@ const SettingsView = () => {
 
                 {/* About Link */}
                 <div className="text-center pt-8 pb-4">
-                    <p className="text-xs text-google-text-secondary opacity-50">LyricVault v0.1.1 • Designed for Pixel</p>
+                    <p className="text-xs text-google-text-secondary opacity-50">LyricVault v0.1.4 • Designed for Pixel</p>
                 </div>
             </main>
         </>

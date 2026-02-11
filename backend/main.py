@@ -39,7 +39,7 @@ from services.lyricist import lyricist
 from services.gemini_service import gemini_service
 from services import settings_service
 
-app = FastAPI(title="LyricVault API", version="0.1.3")
+app = FastAPI(title="LyricVault API", version="0.1.4")
 
 # In-memory task tracking
 active_tasks = {}
@@ -381,6 +381,19 @@ def save_gemini_key(request: ApiKeyRequest):
     settings_service.set_gemini_api_key(key)
     gemini_service.reload()
     return {"status": "saved", "message": "Gemini API key saved and activated."}
+
+@app.post("/settings/test-gemini-key")
+def test_gemini_key(request: ApiKeyRequest):
+    """Test a Gemini API key without saving it."""
+    key = request.api_key.strip()
+    if not key:
+        raise HTTPException(status_code=400, detail="API key cannot be empty")
+    
+    is_valid = gemini_service.validate_key(key)
+    if is_valid:
+        return {"status": "valid", "message": "API key is valid!"}
+    else:
+        raise HTTPException(status_code=400, detail="Invalid API key. Please check and try again.")
 
 @app.delete("/settings/gemini-key")
 def delete_gemini_key():
