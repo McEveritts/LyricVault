@@ -2,7 +2,7 @@
 
 ## Your Personal Music Sanctuary — AI-Powered Lyric Research & Local Library
 
-[![Version](https://img.shields.io/badge/version-0.1.1-E2C286?style=for-the-badge)](https://github.com/McEveritts/LyricVault)
+[![Version](https://img.shields.io/badge/version-0.1.2-E2C286?style=for-the-badge)](https://github.com/McEveritts/LyricVault)
 [![License: MIT](https://img.shields.io/badge/License-MIT-E2C286?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Tech: Electron](https://img.shields.io/badge/Tech-Electron-2B2D31?style=for-the-badge&logo=electron)](https://www.electronjs.org/)
 [![Tech: FastAPI](https://img.shields.io/badge/Tech-FastAPI-2B2D31?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
