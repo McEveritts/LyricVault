@@ -1,127 +1,106 @@
-# 🌌 LyricVault
+# 🌌 LyricVault v0.1.2
 
-## Your Personal Music Sanctuary — AI-Powered Lyric Research & Local Library
+## The Ultimate Local Music Sanctuary — Powered by AI
 
 [![Version](https://img.shields.io/badge/version-0.1.2-E2C286?style=for-the-badge)](https://github.com/McEveritts/LyricVault)
 [![License: MIT](https://img.shields.io/badge/License-MIT-E2C286?style=for-the-badge)](https://opensource.org/licenses/MIT)
-[![Tech: Electron](https://img.shields.io/badge/Tech-Electron-2B2D31?style=for-the-badge&logo=electron)](https://www.electronjs.org/)
-[![Tech: FastAPI](https://img.shields.io/badge/Tech-FastAPI-2B2D31?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
+[![Build: Portable & Installer](https://img.shields.io/badge/Build-Portable%20%2B%20Installer-2B2D31?style=for-the-badge)](https://github.com/McEveritts/LyricVault/releases)
 
 ---
 
-## ✨ The Vision
+## ✨ What is LyricVault?
 
-**LyricVault** isn't just a music player; it's a **sanctuary**. In a world of fleeting streams and missing lyrics, LyricVault provides a home for your music. Inspired by the deep, immersive vibes of **Space Bass** and the rhythmic pulse of **House**, the interface is designed to be a premium, glassmorphic haven for audiophiles who crave more than just a play button.
+**LyricVault** is a reimagined music player for the modern audiophile. It combines a local-first philosophy with the power of generative AI to ensure your music library is beautiful, complete, and fully yours.
 
-Built with the sleek design language of the **Google Pixel 10 Pro**, LyricVault combines industrial minimalism with cosmic warmth.
+Stop relying on streaming services that change metadata or remove tracks. Build your **sanctuary**.
 
 ---
 
-## 🚀 Key Features
+## 🚀 New in v0.1.2
 
-### 🪄 Magic Paste
+### 🌍 Universal Discovery using "Magic Paste"
 
-Found a track on YouTube, Spotify, or SoundCloud? Just paste the URL. LyricVault handles the rest—fetching high-quality audio, cover art, and metadata automatically.
+Search and ingest music from anywhere. The new **Discover Tab** supports:
 
-### 🧠 AI-Powered Lyricist (Gemini 2.0)
+- **YouTube** (Video & Audio)
+- **Spotify** (Metadata & Matching)
+- **SoundCloud** (Direct Integration)
+- **Direct URL**: Just paste a link from any source into the **Magic Paste** bar.
 
-Standard lyric databases fail you? LyricVault doesn't.
+### ⚡ Live Processing Engine
 
-- **Deep Research**: If lyrics aren't in the database, our AI agent scours its vast knowledge to find them.
-- **Multimodal Transcription**: As a last resort, the AI *listens* to your audio file and transcribes the lyrics with incredible accuracy, preserving the artist's intent.
+Watch your library come alive.
 
-### 🎹 Immersive Experience
+- **Real-Time Progress**: The new **Processing View** shows live progress bars for every task—from downloading audio to AI lyric transcription.
+- **Background Workers**: Queue up dozens of songs and let LyricVault handle the heavy lifting.
 
-- **LRC Synced Lyrics**: Watch your lyrics flow in real-time with the music.
-- **Space Bass Aesthetics**: A UI that pulses and floats, featuring gold accents, glass panels, and smooth transitions.
-- **Local-First Library**: Your music stays on your machine. Fast, private, and always available.
+### 🧠 Gemini 2.0 Intelligence
 
-### 🔍 Health & Stability
+Powered by Google's latest **Gemini 2.0 Flash** model:
 
-Built-in **API Monitor** provides a real-time dashboard for all your services—FastAPI, Gemini, and the iTunes metadata engine—ensuring your sanctuary is always online.
+- **Manual Research**: Missing lyrics? Click the new **✨ Research with Gemini** button to force a deep search using AI.
+- **Multimodal Transcription**: If text search fails, the AI *listens* to the audio file to transcribe lyrics with human-level accuracy.
+
+### 💼 Portable Mode
+
+Take your sanctuary with you.
+
+- **Portable .exe**: Now available alongside the standard installer. Run LyricVault from a USB drive or cloud folder without installation.
+
+---
+
+## 🎨 The Aesthetic: "Space Bass"
+
+Inspired by the Google Pixel 10 Pro and deep house vibes:
+
+- **Glassmorphism**: High-blur, translucent panels.
+- **Gold Accents**: Signature `#E2C286` highlights against a deep void background.
+- **Fluid Motion**: Animations that breathe with the music.
 
 ---
 
 ## 🛠️ Tech Stack
 
-LyricVault is built with a modern, high-performance stack:
-
-| Component | Technology |
+| Core | Technology |
 | :--- | :--- |
-| **Frontend** | React + Vite + Tailwind CSS |
-| **Desktop Shell** | Electron |
-| **Backend API** | FastAPI (Python) |
-| **Database** | SQLite + SQLAlchemy |
-| **AI Engine** | Google Gemini 2.0 Flash |
-| **Audio Processing** | yt-dlp + FFmpeg |
+| **Frontend** | React 19 + Vite + Tailwind v4 |
+| **Backend** | Python FastAPI + SQLAlchemy |
+| **AI** | Google Gemini 2.0 Flash (Stable) |
+| **Audio** | yt-dlp + FFmpeg (Auto-managed) |
+| **Shell** | Electron 35 |
 
 ---
 
 ## 🚦 Getting Started
 
-### Prerequisites
+### 1. Installation
 
-- **Node.js** (v18+)
-- **Python** (3.12+)
-- **FFmpeg** (Included in setup script)
+Grab the latest release from the `releases` folder or build it yourself.
 
-### Installation
+**Option A: Installer**
+Run `LyricVault Setup 0.1.2.exe` to install to your system.
 
-1. **Clone the Sanctuary**
+**Option B: Portable**
+Run `LyricVault 0.1.2.exe` to launch instantly.
 
-   ```bash
-   git clone https://github.com/McEveritts/LyricVault.git
-   cd LyricVault
-   ```
+### 2. Configuration
 
-2. **Run the Divine Setup**
-   Our automated script sets up a portable Python environment and downloads FFmpeg for you.
+To enable AI features:
 
-   ```bash
-   npm run setup:python
-   ```
-
-3. **Install UI Dependencies**
-
-   ```bash
-   npm install
-   cd frontend && npm install && cd ..
-   ```
-
-4. **Launch the Experience**
-
-   ```bash
-   npm run dev
-   ```
+1. Go to **Settings**.
+2. Enter your [Google Gemini API Key](https://aistudio.google.com/).
+3. Select **Gemini 2.0 Flash** (Recommended).
 
 ---
 
-## ⚙️ Configuration
+## 🤝 Contributing
 
-To unlock the full power of the **AI Lyricist**, you'll need a Google Gemini API Key.
+We welcome fellow audiophiles and coders!
 
-1. Get a free key from the [Google AI Studio](https://aistudio.google.com/).
-2. Open **Settings** in the LyricVault app.
-3. Paste your key and choose your preferred model (Gemini 2.0 Flash recommended).
-
----
-
-## 🎨 Vibe Check
-
-Lyrics should feel like a part of the song, not an afterthought. LyricVault's design uses:
-
-- **Google Gold (`#E2C286`)**: For that premium, royal touch.
-- **Material Design 3**: Ultra-rounded corners and pill-shaped interactive elements.
-- **Glassmorphism**: High-blur background panels that give a sense of depth and space.
+1. Fork the repo.
+2. `npm run setup:python` to initialize the backend.
+3. `npm run dev` to launch the development environment.
 
 ---
 
-## 📄 License
-
-Distributed under the MIT License. See `LICENSE` for more information.
-
----
-
----
-
-> *Created with ❤️ for the music obsessed.*
+> *Created with ❤️ by McEveritts.*
