@@ -23,7 +23,7 @@ class LyricistService:
         text = re.sub(r"\(\s*\)", "", text)
         return text.strip()
 
-    def transcribe(self, track_name: str, artist_name: str, file_path: str = None) -> str | None:
+    def transcribe(self, track_name: str, artist_name: str, file_path: str = None, status_callback=None) -> str | None:
         """
         Fetch lyrics using a multi-source approach:
         1. Try syncedlyrics databases first (Musixmatch, Netease, etc.)
@@ -39,27 +39,31 @@ class LyricistService:
         """
         
         # === Step 1: Try syncedlyrics ===
-        lyrics = self._try_syncedlyrics(track_name, artist_name)
+        # === Step 1: Try syncedlyrics ===
+        if status_callback: status_callback("Searching lyric databases...")
+        lyrics = self._try_syncedlyrics(track_name, artist_name, status_callback)
         if lyrics:
             return lyrics
         
         # === Step 2: Try Gemini AI research ===
         print(f"syncedlyrics failed, trying Gemini research...")
-        lyrics = self._try_gemini_research(track_name, artist_name)
+        if status_callback: status_callback("Databases failed. Researching with AI...")
+        lyrics = self._try_gemini_research(track_name, artist_name, status_callback)
         if lyrics:
             return lyrics
         
         # === Step 3: Try Gemini audio transcription ===
         if file_path:
             print(f"Gemini research failed, trying audio transcription...")
-            lyrics = self._try_gemini_transcription(file_path, track_name, artist_name)
+            if status_callback: status_callback("Research failed. Listening to audio...")
+            lyrics = self._try_gemini_transcription(file_path, track_name, artist_name, status_callback)
             if lyrics:
                 return lyrics
         
         print(f"All lyric sources exhausted for: {track_name}")
         return None
     
-    def _try_syncedlyrics(self, track_name: str, artist_name: str) -> str | None:
+    def _try_syncedlyrics(self, track_name: str, artist_name: str, status_callback=None) -> str | None:
         """Try multiple search variations with syncedlyrics"""
         search_terms = [
             f"{track_name} {artist_name}",
@@ -83,22 +87,22 @@ class LyricistService:
                 
         return None
     
-    def _try_gemini_research(self, track_name: str, artist_name: str) -> str | None:
+    def _try_gemini_research(self, track_name: str, artist_name: str, status_callback=None) -> str | None:
         """Try Gemini AI knowledge-based lyric lookup"""
         if not gemini_service.is_available():
             print("[Gemini] Service not available (API key not set)")
             return None
             
         print(f"[Gemini] Researching lyrics for: {track_name} by {artist_name}")
-        return gemini_service.research_lyrics(track_name, artist_name)
+        return gemini_service.research_lyrics(track_name, artist_name, status_callback)
     
-    def _try_gemini_transcription(self, file_path: str, track_name: str, artist_name: str) -> str | None:
+    def _try_gemini_transcription(self, file_path: str, track_name: str, artist_name: str, status_callback=None) -> str | None:
         """Try Gemini AI audio transcription"""
         if not gemini_service.is_available():
             print("[Gemini] Service not available (API key not set)")
             return None
             
         print(f"[Gemini] Transcribing audio: {file_path}")
-        return gemini_service.transcribe_audio(file_path, track_name, artist_name)
+        return gemini_service.transcribe_audio(file_path, track_name, artist_name, status_callback)
 
 lyricist = LyricistService()

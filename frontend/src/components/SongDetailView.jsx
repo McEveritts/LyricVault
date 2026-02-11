@@ -4,6 +4,7 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, isEmpty, currentTime }) 
     const [activeTab, setActiveTab] = useState('lyrics');
     const [researching, setResearching] = useState(false);
     const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash');
+    const [transcriptionMode, setTranscriptionMode] = useState(false);
     const [availableModels, setAvailableModels] = useState([]);
     const [statusMsg, setStatusMsg] = useState(null);
     const lyricsContainerRef = useRef(null);
@@ -167,21 +168,123 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, isEmpty, currentTime }) 
                         {/* Content Area */}
                         <div className="flex-1 overflow-y-auto p-6 relative scroll-smooth" ref={lyricsContainerRef}>
                             {activeTab === 'lyrics' && (
-                                <div className="space-y-6 text-center py-10">
-                                    {lyrics.length > 0 ? (
-                                        lyrics.map((line, i) => (
-                                            <p
-                                                key={i}
-                                                className={`text-lg transition-all duration-300 cursor-pointer hover:opacity-80
+                                <div className="space-y-6 text-center py-10 relative">
+                                    {(lyrics.length > 0 && song.lyrics !== "Lyrics not found.") ? (
+                                        <>
+                                            <div className="absolute top-0 right-0 z-10 opacity-0 hover:opacity-100 transition-opacity">
+                                                <button
+                                                    onClick={() => {
+                                                        if (window.confirm("This will overwrite existing lyrics. Continue?")) {
+                                                            // Force clear lyrics to trigger research view
+                                                            // ideally we'd have a specific state for this, but for now we can rely on immediate action or just show the research box in a modal
+                                                            // actually, let's just toggle a "forced research" mode
+                                                            setResearching(false); // reset
+                                                            // We'll just render the research box below the lyrics for now or replace them?
+                                                            // Let's replace the view temporarily or adding a "Redo" button that switches a local state
+                                                            // Simpler: Just clear the lyrics locally and show the research box
+                                                            // But that might be confusing if they cancel. 
+                                                            // Let's just add a button to the "Lyrics" array map? No.
+                                                            // Let's add a small 'Research' button in the corner that opens a dialog or switches view.
+                                                            // For this fix, let's just make the "Empty" check smarter and maybe add a "Wrong Lyrics?" button at the bottom.
+                                                        }
+                                                    }}
+                                                    className="p-2 bg-google-surface-high rounded-lg text-xs"
+                                                >
+                                                    Wrong Lyrics?
+                                                </button>
+                                            </div>
+                                            {lyrics.map((line, i) => (
+                                                <p
+                                                    key={i}
+                                                    className={`text-lg transition-all duration-300 cursor-pointer hover:opacity-80
                                                     ${i === activeLineIndex
-                                                        ? 'text-google-text font-bold scale-105 origin-center'
-                                                        : 'text-google-text-secondary opacity-40 blur-[0.5px]'
-                                                    }
+                                                            ? 'text-google-text font-bold scale-105 origin-center'
+                                                            : 'text-google-text-secondary opacity-40 blur-[0.5px]'
+                                                        }
                                                 `}
-                                            >
-                                                {line.content}
-                                            </p>
-                                        ))
+                                                >
+                                                    {line.content}
+                                                </p>
+                                            ))}
+
+                                            {/* Wrong Lyrics / Re-research Button */}
+                                            <div className="mt-12 pt-8 border-t border-white/5">
+                                                <button
+                                                    onClick={() => {
+                                                        // Determine if we are in "research mode" - actually we can just use the empty state view if we trick it, 
+                                                        // OR we can just duplicate the research UI here. 
+                                                        // Let's toggle a local "showResearch" state.
+                                                        // But we don't have that state yet.
+                                                        // Let's implement a quick toggle.
+                                                        const researchSection = document.getElementById('research-section');
+                                                        if (researchSection) researchSection.scrollIntoView({ behavior: 'smooth' });
+                                                    }}
+                                                    className="text-xs text-google-text-secondary hover:text-google-text underline decoration-dotted"
+                                                >
+                                                    Not the right lyrics? Try researching again.
+                                                </button>
+
+                                                {/* Hidden Research Section for "Re-doing" - actually let's just show it always if requested? 
+                                                   No, cleaning this up: The user wants to FIX the issue where the button DISAPPEARS.
+                                                   The button disappears because `lyrics.length > 0`.
+                                                   If I change the `lyrics.length > 0` check to also check for "not found", that fixes the main bug.
+                                                   
+                                                   To support "Redo", I'll add the research box AT THE BOTTOM of the lyrics list too, or make it toggleable.
+                                                */}
+                                                <div id="research-section" className="mt-8 flex flex-col items-center">
+                                                    <p className="text-xs text-google-text-secondary mb-4 uppercase tracking-wider">Manual Research</p>
+                                                    <div className="bg-google-surface/50 border border-white/5 p-6 rounded-[2rem] max-w-sm w-full space-y-4">
+                                                        <div className="space-y-1 text-left">
+                                                            <label className="text-[10px] font-bold text-google-text-secondary uppercase tracking-widest pl-1">Research Model</label>
+                                                            <select
+                                                                value={selectedModel}
+                                                                onChange={(e) => setSelectedModel(e.target.value)}
+                                                                className="w-full bg-google-surface border border-white/10 rounded-xl px-4 py-2 text-sm text-google-text focus:outline-none focus:ring-1 focus:ring-google-gold"
+                                                            >
+                                                                {availableModels.map(m => (
+                                                                    <option key={m.id} value={m.id}>{m.name}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+
+                                                        <button
+                                                            onClick={async () => {
+                                                                setResearching(true);
+                                                                setStatusMsg("AI is researching...");
+                                                                try {
+                                                                    const res = await fetch(`http://localhost:8000/research_lyrics/${song.id}`, {
+                                                                        method: 'POST',
+                                                                        headers: { 'Content-Type': 'application/json' },
+                                                                        body: JSON.stringify({ model_id: selectedModel })
+                                                                    });
+                                                                    const data = await res.json();
+                                                                    if (data.status === 'success') {
+                                                                        setStatusMsg("Lyrics found! Refreshing...");
+                                                                        window.location.reload();
+                                                                    } else {
+                                                                        setStatusMsg(data.message || "Research failed.");
+                                                                    }
+                                                                } catch (err) {
+                                                                    setStatusMsg("Connection error.");
+                                                                } finally {
+                                                                    setResearching(false);
+                                                                }
+                                                            }}
+                                                            disabled={researching}
+                                                            className="w-full py-3 bg-google-gold text-black rounded-xl font-bold text-sm hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                                                        >
+                                                            {researching ? (
+                                                                <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin"></span>
+                                                            ) : (
+                                                                <span>✨ Research with Gemini</span>
+                                                            )}
+                                                        </button>
+                                                        {statusMsg && <p className="text-[10px] text-center text-google-gold font-medium uppercase tracking-wider">{statusMsg}</p>}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </>
+
                                     ) : (
                                         <div className="flex flex-col items-center justify-center py-20">
                                             <div className="w-16 h-16 bg-google-surface rounded-2xl flex items-center justify-center mb-4 opacity-50">
@@ -203,15 +306,33 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, isEmpty, currentTime }) 
                                                     </select>
                                                 </div>
 
+                                                <label className="flex items-center gap-2 cursor-pointer group">
+                                                    <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${transcriptionMode ? 'bg-google-gold border-google-gold' : 'border-google-text-secondary group-hover:border-google-text'}`}>
+                                                        {transcriptionMode && <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 text-black"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
+                                                    </div>
+                                                    <input
+                                                        type="checkbox"
+                                                        className="hidden"
+                                                        checked={transcriptionMode}
+                                                        onChange={(e) => setTranscriptionMode(e.target.checked)}
+                                                    />
+                                                    <span className={`text-xs ${transcriptionMode ? 'text-google-gold font-medium' : 'text-google-text-secondary group-hover:text-google-text'}`}>
+                                                        Force Audio Transcription (Listen to file)
+                                                    </span>
+                                                </label>
+
                                                 <button
                                                     onClick={async () => {
                                                         setResearching(true);
-                                                        setStatusMsg("AI is researching...");
+                                                        setStatusMsg(transcriptionMode ? "Listening & Transcribing..." : "AI is researching...");
                                                         try {
                                                             const res = await fetch(`http://localhost:8000/research_lyrics/${song.id}`, {
                                                                 method: 'POST',
                                                                 headers: { 'Content-Type': 'application/json' },
-                                                                body: JSON.stringify({ model_id: selectedModel })
+                                                                body: JSON.stringify({
+                                                                    model_id: selectedModel,
+                                                                    mode: transcriptionMode ? 'transcribe' : 'auto'
+                                                                })
                                                             });
                                                             const data = await res.json();
                                                             if (data.status === 'success') {

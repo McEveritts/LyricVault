@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
 from urllib.parse import quote
+import time
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -73,6 +74,7 @@ class ApiKeyRequest(BaseModel):
 
 class ModelRequest(BaseModel):
     model_id: str
+    mode: str = "auto"  # "auto" or "transcribe"
 
 @app.on_event("startup")
 def on_startup():
@@ -153,8 +155,18 @@ def process_lyrics(song_id: int, title: str, artist: str, file_path: str = None)
             active_tasks[task_id]["progress"] = 30
             active_tasks[task_id]["status"] = "Searching databases..."
 
+        # Define callback to update task status in real-time
+        def update_status(msg):
+            print(f"[{task_id}] Status update: {msg}")
+            if task_id in active_tasks:
+                active_tasks[task_id]["status"] = msg
+                # Optional: Guess progress based on message content for better UX?
+                if "Uploading" in msg: active_tasks[task_id]["progress"] = 40
+                if "Analyzing" in msg: active_tasks[task_id]["progress"] = 60
+                if "Researching" in msg: active_tasks[task_id]["progress"] = 50
+
         # Pass file_path to enable audio transcription fallback
-        lyrics = lyricist.transcribe(title, artist, file_path)
+        lyrics = lyricist.transcribe(title, artist, file_path, status_callback=update_status)
         
         if task_id in active_tasks:
             active_tasks[task_id]["progress"] = 80
@@ -210,21 +222,72 @@ async def research_lyrics_manual(song_id: int, request: ModelRequest, db: Sessio
     # 1. Try Gemini Research directly first
     print(f"Manual research triggered for: {song.title} using model {request.model_id}")
     
+    # Register task for Sidebar visibility
+    task_id = f"manual_{song.id}_{int(time.time())}"
+    
     # Temporarily override selected model if provided
     original_model = settings_service.get_gemini_model()
     try:
         settings_service.set_gemini_model(request.model_id)
-        # Try Research
-        lyrics = lyricist._try_gemini_research(song.title, song.artist.name)
         
-        # If research failed, try transcription if audio exists
-        if not lyrics and song.file_path and os.path.exists(song.file_path):
-             lyrics = lyricist._try_gemini_transcription(song.file_path, song.title, song.artist.name)
+        lyrics = None
+        # Mode: Auto (Research -> Transcribe)
+        if request.mode == "auto":
+            # Try Research
+            if task_id in active_tasks: active_tasks[task_id]["status"] = "AI Researching..."
+            lyrics = lyricist._try_gemini_research(song.title, song.artist.name)
+            
+            # If research failed, try transcription if audio exists
+            if not lyrics and song.file_path and os.path.exists(song.file_path):
+                 if task_id in active_tasks: active_tasks[task_id]["status"] = "Research failed. Transcribing..."
+                 lyrics = lyricist._try_gemini_transcription(song.file_path, song.title, song.artist.name)
+        
+        # Mode: Transcribe (Force Audio Transcription)
+        elif request.mode == "transcribe":
+            if song.file_path and os.path.exists(song.file_path):
+                print(f"Forcing audio transcription for: {song.title}")
+                if task_id in active_tasks: active_tasks[task_id]["status"] = "Uploading & Transcribing..." 
+                # We need to pass a callback here too if we want real-time updates for manual research
+                # But manual research is currently synchronous in this endpoint (active_tasks is for background)
+                # This endpoint returns the lyrics directly. 
+                # HOWEVER, the UI might be polling tasks? 
+                # Actually, `research_lyrics_manual` is POST and awaits response. 
+                # The "Processing Queue" shows background tasks.
+                # If we want the manual research to show up in "Processing Queue" we need to add it to `active_tasks`.
+                
+                # Let's register a temp task for manual research so it shows up in the sidebar!
+                active_tasks[task_id] = {
+                    "id": task_id,
+                    "type": "manual_research",
+                    "title": f"Researching: {song.title}",
+                    "status": "Starting...",
+                    "progress": 0
+                }
+                
+                def manual_status_update(msg):
+                    if task_id in active_tasks:
+                        active_tasks[task_id]["status"] = msg
+                
+                try:
+                    lyrics = lyricist._try_gemini_transcription(song.file_path, song.title, song.artist.name, status_callback=manual_status_update)
+                finally:
+                    # Clean up task
+                    if task_id in active_tasks:
+                         del active_tasks[task_id]
+                if not lyrics:
+                    # Fallback to research if transcription fails????? 
+                    # User asked for transcription specifically, maybe we should just fail?
+                    # Let's keep it strict for now to respect the "Force" intent.
+                    pass
+            else:
+                return {"status": "failed", "message": "Audio file not found for transcription."}
+
     finally:
         # Restore original setting
         settings_service.set_gemini_model(original_model)
     
     if lyrics:
+
         song.lyrics = lyrics
         song.lyrics_synced = False
         db.commit()

@@ -104,12 +104,13 @@ class GeminiService:
                 else:
                     raise last_error
 
-    def research_lyrics(self, track_name: str, artist_name: str) -> str | None:
+    def research_lyrics(self, track_name: str, artist_name: str, status_callback=None) -> str | None:
         """
         Use Gemini to research and find published lyrics for a song.
         This is a fallback when syncedlyrics database search fails.
         """
         if not self.is_available():
+            if status_callback: status_callback("Gemini API key missing")
             return None
 
         prompt = f"""You are a music research assistant. I need help finding the lyrics for:
@@ -124,6 +125,7 @@ Do not make up or guess lyrics - only provide them if you're confident they're a
 
         try:
             def _call():
+                if status_callback: status_callback(f"Researching: {track_name}...")
                 return self.client.models.generate_content(
                     model=self.model,
                     contents=prompt
@@ -132,7 +134,22 @@ Do not make up or guess lyrics - only provide them if you're confident they're a
             response = self._call_with_retry(_call)
             result = response.text.strip()
 
-            if "LYRICS_NOT_FOUND" in result or "I don't have" in result.lower() or "i cannot" in result.lower():
+            result_lower = result.lower()
+            refusal_phrases = [
+                "lyrics_not_found",
+                "i don't have",
+                "i cannot",
+                "i am unable",
+                "unfortunately",
+                "copyright",
+                "i apologize",
+                "i'm sorry",
+                "as an ai",
+                "cannot provide"
+            ]
+            
+            if any(phrase in result_lower for phrase in refusal_phrases):
+
                 print(f"Gemini research: Lyrics not found for {track_name}")
                 return None
 
@@ -143,11 +160,12 @@ Do not make up or guess lyrics - only provide them if you're confident they're a
             print(f"Gemini research error: {e}")
             return None
 
-    def transcribe_audio(self, audio_file_path: str, track_name: str = None, artist_name: str = None) -> str | None:
+    def transcribe_audio(self, audio_file_path: str, track_name: str = None, artist_name: str = None, status_callback=None) -> str | None:
         """
         Use Gemini's multimodal capabilities to transcribe lyrics from audio.
         """
         if not self.is_available():
+            if status_callback: status_callback("Gemini API key missing")
             return None
 
         if not os.path.exists(audio_file_path):
@@ -161,6 +179,7 @@ Do not make up or guess lyrics - only provide them if you're confident they're a
             file_size_mb = len(audio_bytes) / (1024 * 1024)
             if file_size_mb > 20:
                 print(f"Audio file too large for inline processing: {file_size_mb:.1f}MB")
+                if status_callback: status_callback(f"Error: Audio too large ({file_size_mb:.1f}MB)")
                 return None
 
             ext = os.path.splitext(audio_file_path)[1].lower()
@@ -195,6 +214,7 @@ If the audio is instrumental or you cannot understand the lyrics clearly, respon
             )
 
             def _call():
+                if status_callback: status_callback(f"Uploading audio ({file_size_mb:.1f}MB) & Analyzing...")
                 return self.client.models.generate_content(
                     model=self.model,
                     contents=[prompt, audio_part]
@@ -212,6 +232,7 @@ If the audio is instrumental or you cannot understand the lyrics clearly, respon
 
         except Exception as e:
             print(f"Gemini transcription error: {e}")
+            if status_callback: status_callback(f"Error: {str(e)[:50]}...")
             return None
 
 

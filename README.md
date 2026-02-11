@@ -1,4 +1,4 @@
-# 🌌 LyricVault v0.1.2
+# ![LyricVault Logo](./frontend/public/logo.svg) LyricVault v0.1.3
 
 ## The Ultimate Local Music Sanctuary — Powered by AI
 
@@ -22,14 +22,12 @@ Stop relying on streaming services that change metadata or remove tracks. Build 
 
 Search and ingest music from anywhere. The new **Discover Tab** supports:
 
-<<<<<<< HEAD
 - **YouTube** (Video & Audio)
 - **Spotify** (Metadata & Matching)
 - **SoundCloud** (Direct Integration)
 - **Direct URL**: Just paste a link from any source into the **Magic Paste** bar.
-=======
+
 ### 🧠 AI-Powered Lyricist (Gemini)
->>>>>>> 4f98369598f50708ea253507983d62f37cf38e4a
 
 ### ⚡ Live Processing Engine
 
