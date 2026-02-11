@@ -1,10 +1,14 @@
 import logging
 import os
 import sys
+import json
+import time
+import threading
+import hashlib
 from logging.handlers import RotatingFileHandler
+from urllib.parse import quote
 
-# Add current directory to sys.path to ensure local modules can be imported
-# This is required for the embedded python environment which may not auto-add script dir
+# Add current directory to sys.path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Configure Logging
@@ -19,10 +23,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
-from urllib.parse import quote
-import time
-import threading
+from fastapi import FastAPI, Depends, HTTPException, Response, status
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -30,7 +31,6 @@ import uvicorn
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
 load_dotenv()
 
 from database.database import init_db, get_db, SessionLocal
@@ -39,31 +39,11 @@ from services.ingestor import ingestor
 from services.lyricist import lyricist
 from services.gemini_service import gemini_service
 from services import settings_service
+from services.worker import worker
 
-app = FastAPI(title="LyricVault API", version="0.2.1.1")
+app = FastAPI(title="LyricVault API", version="0.3.0")
 
-# In-memory task tracking (thread-safe)
-_task_lock = threading.Lock()
-active_tasks: dict[str, dict] = {}
-
-def update_task(task_id: str, **fields):
-    """Thread-safe update of an active task's fields."""
-    with _task_lock:
-        if task_id in active_tasks:
-            active_tasks[task_id].update(fields)
-
-def register_task(task_id: str, task_data: dict):
-    """Thread-safe registration of a new task."""
-    with _task_lock:
-        active_tasks[task_id] = task_data
-
-def remove_task(task_id: str):
-    """Thread-safe removal of a task."""
-    with _task_lock:
-        active_tasks.pop(task_id, None)
-
-# Mount downloads directory to serve audio files
-# Ensure directory exists
+# Mount downloads directory
 os.makedirs("downloads", exist_ok=True)
 app.mount("/stream", StaticFiles(directory="downloads"), name="stream")
 
@@ -87,215 +67,104 @@ class SongResponse(BaseModel):
     stream_url: str
     cover_url: str | None = None
 
+class JobResponse(BaseModel):
+    id: int
+    status: str
+    type: str
+
 class ApiKeyRequest(BaseModel):
     api_key: str
 
 class ModelRequest(BaseModel):
     model_id: str
-    mode: str = "auto"  # "auto" or "transcribe"
+    mode: str = "auto"
 
 @app.on_event("startup")
 def on_startup():
     init_db()
-    
-@app.post("/ingest", response_model=SongResponse)
-async def ingest_song(request: IngestRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    # 0. Validate URL
-    url = request.url.strip()
-    if not url:
-        raise HTTPException(status_code=400, detail="URL cannot be empty")
+    worker.start()
 
-    # Check for duplicate ingestion
-    existing = db.query(models.Song).filter(models.Song.source_url == url).first()
-    if existing:
-        filename = os.path.basename(existing.file_path) if existing.file_path else ""
-        stream_url = f"http://localhost:8000/stream/{quote(filename)}" if filename else ""
-        return {
-            "id": existing.id,
-            "title": existing.title,
-            "artist": existing.artist.name if existing.artist else "Unknown",
-            "lyrics_status": "ready" if existing.lyrics else "unavailable",
-            "stream_url": stream_url,
-            "cover_url": existing.cover_url
-        }
+@app.on_event("shutdown")
+def on_shutdown():
+    worker.stop()
 
-    # 1. Parse URL & Identify Platform
-    platform = ingestor.parse_url(url)
-    if not platform:
-         raise HTTPException(status_code=400, detail="Unsupported platform")
-         
-    # 2. Download Audio
+@app.post("/ingest", response_model=JobResponse, status_code=202)
+async def ingest_song(request: IngestRequest, db: Session = Depends(get_db)):
     try:
-        metadata = ingestor.download_audio(url)
-    except HTTPException:
-        raise  # Already a proper HTTP error — don't re-wrap
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Download failed: {str(e)}")
+        url = request.url.strip()
+        if not url:
+            raise HTTPException(status_code=400, detail="URL cannot be empty")
+
+        url_hash = hashlib.md5(url.encode()).hexdigest()
+        idempotency_key = f"ingest_{url_hash}"
         
-    # check if artist exists
-    artist = db.query(models.Artist).filter(models.Artist.name == metadata['artist']).first()
-    if not artist:
-        artist = models.Artist(name=metadata['artist'])
-        db.add(artist)
-        db.commit()
-        db.refresh(artist)
-        
-    # check if song exists
-    song = db.query(models.Song).filter(models.Song.file_path == metadata['file_path']).first()
-    if not song:
-        song = models.Song(
-            title=metadata['title'],
-            artist_id=artist.id,
-            file_path=metadata['file_path'],
-            duration=metadata['duration'],
-            source_url=url,
-            lyrics_synced=False,
-            cover_url=metadata.get('cover_url')
+        # Check for existing job (idempotency)
+        existing_job = db.query(models.Job).filter(models.Job.idempotency_key == idempotency_key).first()
+        if existing_job:
+            return existing_job
+
+        # Create new ingest job
+        job = models.Job(
+            type="ingest_audio",
+            status="pending",
+            idempotency_key=idempotency_key,
+            payload=json.dumps({"url": url})
         )
-        db.add(song)
-        db.commit()
-        db.refresh(song)
-
-
-    # 3. Fetch Lyrics (Background Task)
-    task_id = f"lyrics_{song.id}"
-    register_task(task_id, {
-        "id": task_id,
-        "type": "lyrics",
-        "title": song.title,
-        "status": "processing",
-        "progress": 10
-    })
-
-    # Pass metadata for search, including file_path for audio transcription fallback
-    background_tasks.add_task(process_lyrics, song.id, metadata['title'], metadata['artist'], metadata['file_path'])
-    
-    # Construct stream URL
-    filename = os.path.basename(metadata['file_path'])
-    stream_url = f"http://localhost:8000/stream/{quote(filename)}"
-
-    return {
-        "id": song.id,
-        "title": song.title,
-        "artist": artist.name,
-        "lyrics_status": "processing",
-        "stream_url": stream_url
-    }
-
-def process_lyrics(song_id: int, title: str, artist: str, file_path: str = None):
-    """Background task to fetch lyrics using multi-source approach"""
-    task_id = f"lyrics_{song_id}"
-    db = SessionLocal()
-    try:
-        update_task(task_id, progress=30, status="Searching databases...")
-
-        # Define callback to update task status in real-time
-        def status_callback(msg):
-            print(f"[{task_id}] Status update: {msg}")
-            fields = {"status": msg}
-            if "Uploading" in msg: fields["progress"] = 40
-            elif "Analyzing" in msg: fields["progress"] = 60
-            elif "Researching" in msg: fields["progress"] = 50
-            update_task(task_id, **fields)
-
-        # Pass file_path to enable audio transcription fallback
-        lyrics = lyricist.transcribe(title, artist, file_path, status_callback=status_callback)
-
-        update_task(task_id, progress=80, status="Finalizing...")
-
-        song = db.get(models.Song, song_id)
-        if song:
-            if lyrics:
-                song.lyrics = lyrics
-                song.lyrics_synced = True
-                print(f"Lyrics found for {title}")
-                update_task(task_id, status="Complete", progress=100)
-            else:
-                song.lyrics = "Lyrics not found."
-                update_task(task_id, status="Failed", progress=100)
+        db.add(job)
+        try:
             db.commit()
+        except Exception as e:
+            db.rollback()
+            logger.warning(f"Idempotency race condition for {url}: {e}")
+            return db.query(models.Job).filter(models.Job.idempotency_key == idempotency_key).first()
+            
+        db.refresh(job)
+        return job
     except Exception as e:
-        print(f"Error processing lyrics: {e}")
-        update_task(task_id, status=f"Error: {str(e)}")
-    finally:
-        db.close()
+        logger.error(f"Ingest failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/tasks")
+@app.get("/jobs")
+def list_jobs(status: str = None, db: Session = Depends(get_db)):
+    query = db.query(models.Job)
+    if status:
+        query = query.filter(models.Job.status == status)
+    return query.order_by(models.Job.created_at.desc()).limit(50).all()
+
+@app.get("/tasks/{job_id}")
+@app.get("/jobs/{job_id}")
+def get_job(job_id: int, db: Session = Depends(get_db)):
+    job = db.get(models.Job, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
 
 @app.post("/retry_lyrics/{song_id}")
-async def retry_lyrics(song_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+async def retry_lyrics(song_id: int, db: Session = Depends(get_db)):
     song = db.get(models.Song, song_id)
     if not song:
         raise HTTPException(status_code=404, detail="Song not found")
     
-    # Reset status
     song.lyrics = None
     song.lyrics_synced = False
     db.commit()
     
-    background_tasks.add_task(process_lyrics, song.id, song.title, song.artist.name, song.file_path)
-    return {"status": "retrying", "song": song.title}
-
-@app.post("/research_lyrics/{song_id}")
-async def research_lyrics_manual(song_id: int, request: ModelRequest, db: Session = Depends(get_db)):
-    """Manually trigger Gemini AI research for a song"""
-    song = db.get(models.Song, song_id)
-    if not song:
-        raise HTTPException(status_code=404, detail="Song not found")
-    
-    # 1. Try Gemini Research directly first
-    print(f"Manual research triggered for: {song.title} using model {request.model_id}")
-    
-    # Register task for Sidebar visibility
-    task_id = f"manual_{song.id}_{int(time.time())}"
-    register_task(task_id, {
-        "id": task_id,
-        "type": "manual_research",
-        "title": f"Researching: {song.title}",
-        "status": "Starting...",
-        "progress": 0
-    })
-
-    def manual_status_update(msg):
-        update_task(task_id, status=msg)
-
-    # Temporarily override selected model if provided
-    original_model = settings_service.get_gemini_model()
-    try:
-        settings_service.set_gemini_model(request.model_id)
-
-        lyrics = None
-        # Mode: Auto (Research -> Transcribe)
-        if request.mode == "auto":
-            # Try Research
-            update_task(task_id, status="AI Researching...")
-            lyrics = lyricist._try_gemini_research(song.title, song.artist.name, manual_status_update)
-
-            # If research failed, try transcription if audio exists
-            if not lyrics and song.file_path and os.path.exists(song.file_path):
-                update_task(task_id, status="Research failed. Transcribing...")
-                lyrics = lyricist._try_gemini_transcription(song.file_path, song.title, song.artist.name, manual_status_update)
-
-        # Mode: Transcribe (Force Audio Transcription)
-        elif request.mode == "transcribe":
-            if song.file_path and os.path.exists(song.file_path):
-                print(f"Forcing audio transcription for: {song.title}")
-                update_task(task_id, status="Uploading & Transcribing...")
-                lyrics = lyricist._try_gemini_transcription(song.file_path, song.title, song.artist.name, status_callback=manual_status_update)
-            else:
-                remove_task(task_id)
-                return {"status": "failed", "message": "Audio file not found for transcription."}
-
-    finally:
-        # Restore original setting
-        settings_service.set_gemini_model(original_model)
-        remove_task(task_id)
-    
-    if lyrics:
-        song.lyrics = lyrics
-        song.lyrics_synced = False
-        db.commit()
-        return {"status": "success", "lyrics": lyrics}
-    else:
-        return {"status": "failed", "message": "AI could not find or transcribe lyrics."}
+    idempotency_key = f"lyrics_retry_{song.id}_{int(time.time())}"
+    job = models.Job(
+        type="generate_lyrics",
+        idempotency_key=idempotency_key,
+        payload=json.dumps({
+            "song_id": song.id,
+            "title": song.title,
+            "artist": song.artist.name if song.artist else "Unknown",
+            "file_path": song.file_path
+        })
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    return job
 
 @app.get("/library", response_model=list[SongResponse])
 def get_library(db: Session = Depends(get_db)):
@@ -309,7 +178,7 @@ def get_library(db: Session = Depends(get_db)):
             "id": song.id,
             "title": song.title,
             "artist": song.artist.name if song.artist else "Unknown",
-            "lyrics_status": "ready" if song.lyrics else "unavailable", # Simple status mapping
+            "lyrics_status": "ready" if song.lyrics else "unavailable",
             "stream_url": stream_url,
             "cover_url": song.cover_url
         })
@@ -317,7 +186,6 @@ def get_library(db: Session = Depends(get_db)):
 
 @app.get("/song/{song_id}")
 def get_song(song_id: int, db: Session = Depends(get_db)):
-    """Get full song details including lyrics"""
     song = db.get(models.Song, song_id)
     if not song:
         raise HTTPException(status_code=404, detail="Song not found")
@@ -336,97 +204,41 @@ def get_song(song_id: int, db: Session = Depends(get_db)):
         "duration": song.duration
     }
 
-# Task Status Schema for type checking
-class TaskStatus(BaseModel):
-    id: str
-    type: str
-    title: str
-    status: str
-    progress: int = 0
-
-@app.get("/tasks")
-def get_tasks():
-    """Return current active/recent tasks"""
-    return list(active_tasks.values())
-
-@app.get("/search")
-def search_music(q: str, platform: str = "youtube"):
-    """Search for music across supported platforms"""
-    results = ingestor.search_platforms(q, platform)
-    return results
-
-# ── Settings Endpoints ────────────────────────────────────────────────
-
+# Settings Endpoints
 @app.get("/settings/gemini-key")
 def get_gemini_key_status():
-    """Check if a Gemini API key is configured and working."""
     key = settings_service.get_gemini_api_key()
     if key:
-        # Mask the key for display
         masked = key[:4] + "*" * (len(key) - 8) + key[-4:] if len(key) > 8 else "****"
         return {"configured": True, "masked_key": masked, "available": gemini_service.is_available()}
     return {"configured": False, "masked_key": None, "available": False}
 
 @app.post("/settings/gemini-key")
 def save_gemini_key(request: ApiKeyRequest):
-    """Validate and save a Gemini API key."""
     key = request.api_key.strip()
     if not key:
         raise HTTPException(status_code=400, detail="API key cannot be empty")
-    
-    # Validate the key
     is_valid = gemini_service.validate_key(key)
     if not is_valid:
-        error_detail = getattr(gemini_service, '_last_validation_error', None)
-        detail_msg = f"Invalid API key: {error_detail}" if error_detail else "Invalid API key. Please check and try again."
-        raise HTTPException(status_code=400, detail=detail_msg)
-    
-    # Save and reload
+        raise HTTPException(status_code=400, detail="Invalid API key")
     settings_service.set_gemini_api_key(key)
     gemini_service.reload()
-    return {"status": "saved", "message": "Gemini API key saved and activated."}
-
-@app.post("/settings/test-gemini-key")
-def test_gemini_key(request: ApiKeyRequest):
-    """Test a Gemini API key without saving it."""
-    key = request.api_key.strip()
-    if not key:
-        raise HTTPException(status_code=400, detail="API key cannot be empty")
-    
-    is_valid = gemini_service.validate_key(key)
-    if is_valid:
-        return {"status": "valid", "message": "API key is valid!"}
-    else:
-        error_detail = getattr(gemini_service, '_last_validation_error', None)
-        detail_msg = f"Invalid API key: {error_detail}" if error_detail else "Invalid API key. Please check and try again."
-        raise HTTPException(status_code=400, detail=detail_msg)
-
-@app.delete("/settings/gemini-key")
-def delete_gemini_key():
-    """Remove the stored Gemini API key."""
-    settings_service.delete_gemini_api_key()
-    gemini_service.reload()
-    return {"status": "deleted", "message": "Gemini API key removed."}
+    return {"status": "saved"}
 
 @app.get("/settings/models")
 def get_models():
-    """Return available Gemini models with rate limit info."""
     models = settings_service.get_available_models()
     current = settings_service.get_gemini_model()
     return {"models": models, "selected": current}
 
 @app.post("/settings/models")
 def set_model(request: ModelRequest):
-    """Set the preferred Gemini model."""
-    try:
-        settings_service.set_gemini_model(request.model_id)
-        return {"status": "saved", "model": request.model_id}
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    settings_service.set_gemini_model(request.model_id)
+    return {"status": "saved"}
 
 @app.get("/")
 def read_root():
-    return {"message": "LyricVault Backend is running"}
+    return {"message": "LyricVault Backend v0.3.0 is running"}
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

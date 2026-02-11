@@ -49,3 +49,29 @@ class Song(Base):
 
     artist = relationship("Artist", back_populates="songs")
     album = relationship("Album", back_populates="songs")
+
+class Job(Base):
+    __tablename__ = "jobs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    type = Column(String, index=True) # ingest_audio | generate_lyrics
+    status = Column(String, default="pending", index=True) # pending | processing | completed | failed
+    title = Column(String, nullable=True) # For UI visibility
+    idempotency_key = Column(String, unique=True, index=True) # e.g. URL or Path hash
+    
+    payload = Column(Text) # JSON string for arguments
+    result_json = Column(Text, nullable=True) # JSON output
+    
+    progress = Column(Integer, default=0)
+    retry_count = Column(Integer, default=0)
+    max_retries = Column(Integer, default=3)
+    last_error = Column(Text, nullable=True)
+    
+    worker_id = Column(String, nullable=True)
+    leased_until = Column(DateTime, nullable=True)
+    available_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
