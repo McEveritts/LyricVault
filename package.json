@@ -5,15 +5,19 @@
     "main": "electron/main.js",
     "private": true,
     "scripts": {
-        "dev": "electron .",
+        "dev": "concurrently -k \"npm run dev:frontend\" \"npm run dev:electron\"",
+        "dev:frontend": "npm --prefix frontend run dev",
+        "dev:electron": "wait-on tcp:5173 && electron .",
         "build:frontend": "cd frontend && npm run build",
         "setup:python": "powershell -ExecutionPolicy Bypass -File scripts/setup-python.ps1",
         "dist": "npm run build:frontend && electron-builder",
         "dist:quick": "electron-builder"
     },
     "devDependencies": {
+        "concurrently": "^9.2.1",
         "electron": "^35.0.0",
-        "electron-builder": "^26.0.0"
+        "electron-builder": "^26.0.0",
+        "wait-on": "^9.0.1"
     },
     "author": "McEveritts",
     "license": "MIT"

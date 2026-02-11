@@ -4,6 +4,7 @@ import sys
 import json
 import time
 import hashlib
+from contextlib import asynccontextmanager
 from logging.handlers import RotatingFileHandler
 from urllib.parse import quote, urlparse, urlunparse
 
@@ -40,7 +41,17 @@ from services.gemini_service import gemini_service
 from services import settings_service
 from services.worker import worker
 
-app = FastAPI(title="LyricVault API", version="0.3.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    worker.start()
+    try:
+        yield
+    finally:
+        worker.stop()
+
+
+app = FastAPI(title="LyricVault API", version="0.3.0", lifespan=lifespan)
 
 # Mount downloads directory
 os.makedirs("downloads", exist_ok=True)
@@ -49,7 +60,12 @@ app.mount("/stream", StaticFiles(directory="downloads"), name="stream")
 # CORS Setup
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:8000", "app://."],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:8000",
+        "app://.",
+        "null",  # Electron file:// renderer origin in packaged builds
+    ],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -95,21 +111,28 @@ def _duration_seconds(value) -> int | None:
     except (TypeError, ValueError):
         return None
 
+
+def _host_matches(host: str, domain: str) -> bool:
+    return host == domain or host.endswith(f".{domain}")
+
+
 def normalize_url(url: str) -> str:
     """Normalize URL for idempotency without mutating case-sensitive IDs."""
     try:
         parsed = urlparse(url.strip())
         scheme = (parsed.scheme or "").lower()
-        netloc = (parsed.netloc or "").lower()
-        if netloc.startswith("www."):
-            netloc = netloc[4:]
+        host = (parsed.hostname or "").lower()
+        if host.startswith("www."):
+            host = host[4:]
+        port = f":{parsed.port}" if parsed.port else ""
+        netloc = f"{host}{port}" if host else (parsed.netloc or "").lower()
 
         path = parsed.path or ""
         if path.endswith("/") and len(path) > 1:
             path = path[:-1]
 
         query = ""
-        if "youtube.com" in netloc:
+        if _host_matches(host, "youtube.com"):
             from urllib.parse import parse_qs, urlencode
             v = parse_qs(parsed.query).get("v")
             if v:
@@ -147,15 +170,6 @@ def _lyrics_status(song: models.Song, processing_song_ids: set[int]) -> str:
     if song.id in processing_song_ids:
         return "processing"
     return "unavailable"
-
-@app.on_event("startup")
-def on_startup():
-    init_db()
-    worker.start()
-
-@app.on_event("shutdown")
-def on_shutdown():
-    worker.stop()
 
 @app.post("/ingest", response_model=JobResponse, status_code=202)
 async def ingest_song(request: IngestRequest, db: Session = Depends(get_db)):
@@ -376,7 +390,10 @@ def get_models():
 
 @app.post("/settings/models")
 def set_model(request: ModelRequest):
-    settings_service.set_gemini_model(request.model_id)
+    try:
+        settings_service.set_gemini_model(request.model_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     return {"status": "saved"}
 
 @app.get("/")

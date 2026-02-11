@@ -8,6 +8,7 @@ import shutil
 import glob
 import requests
 import re
+from urllib.parse import urlparse
 from fastapi import HTTPException
 
 # Resolve Node.js for yt-dlp (avoids JS runtime warnings)
@@ -82,14 +83,29 @@ def get_ydl_opts(download=True):
     return opts
 
 class IngestionService:
+    @staticmethod
+    def _extract_host(url: str) -> str:
+        try:
+            host = (urlparse(url.strip()).hostname or "").lower()
+            if host.startswith("www."):
+                host = host[4:]
+            return host
+        except Exception:
+            return ""
+
+    @staticmethod
+    def _host_matches(host: str, domain: str) -> bool:
+        return host == domain or host.endswith(f".{domain}")
+
     def parse_url(self, url: str):
-        if "youtube.com" in url or "youtu.be" in url:
+        host = self._extract_host(url)
+        if self._host_matches(host, "youtube.com") or self._host_matches(host, "youtu.be"):
             return "youtube"
-        elif "spotify.com" in url:
+        elif self._host_matches(host, "spotify.com"):
             return "spotify"
-        elif "soundcloud.com" in url:
+        elif self._host_matches(host, "soundcloud.com"):
             return "soundcloud"
-        elif "music.apple.com" in url:
+        elif self._host_matches(host, "music.apple.com"):
             return "apple"
         return None
 

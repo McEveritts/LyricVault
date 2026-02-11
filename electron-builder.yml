@@ -36,6 +36,10 @@ extraResources:
     to: ffmpeg/
     filter:
       - "**/*"
+  - from: assets/
+    to: assets/
+    filter:
+      - "icon_v0.1.1.ico"
 
 win:
   target:

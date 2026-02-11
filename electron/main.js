@@ -33,6 +33,13 @@ function getFfmpegDir() {
     return getResourcePath('ffmpeg');
 }
 
+function getWindowIconPath() {
+    if (isDev) {
+        return path.join(__dirname, '..', 'assets', 'icon_v0.1.1.ico');
+    }
+    return getResourcePath('assets', 'icon_v0.1.1.ico');
+}
+
 // ── Backend Process ──────────────────────────────────────────────────
 let backendProcess = null;
 
@@ -144,7 +151,7 @@ function createWindow() {
         },
         // Frameless with custom titlebar feel
         titleBarStyle: 'default',
-        icon: path.join(__dirname, '..', 'assets', 'icon.ico'),
+        icon: getWindowIconPath(),
     });
 
     // Load the frontend

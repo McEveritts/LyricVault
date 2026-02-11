@@ -180,19 +180,8 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, isEmpty, currentTime, an
                                             <div className="absolute top-0 right-0 z-10 opacity-0 hover:opacity-100 transition-opacity">
                                                 <button
                                                     onClick={() => {
-                                                        if (window.confirm("This will overwrite existing lyrics. Continue?")) {
-                                                            // Force clear lyrics to trigger research view
-                                                            // ideally we'd have a specific state for this, but for now we can rely on immediate action or just show the research box in a modal
-                                                            // actually, let's just toggle a "forced research" mode
-                                                            setResearching(false); // reset
-                                                            // We'll just render the research box below the lyrics for now or replace them?
-                                                            // Let's replace the view temporarily or adding a "Redo" button that switches a local state
-                                                            // Simpler: Just clear the lyrics locally and show the research box
-                                                            // But that might be confusing if they cancel. 
-                                                            // Let's just add a button to the "Lyrics" array map? No.
-                                                            // Let's add a small 'Research' button in the corner that opens a dialog or switches view.
-                                                            // For this fix, let's just make the "Empty" check smarter and maybe add a "Wrong Lyrics?" button at the bottom.
-                                                        }
+                                                        const researchSection = document.getElementById('research-section');
+                                                        if (researchSection) researchSection.scrollIntoView({ behavior: 'smooth' });
                                                     }}
                                                     className="p-2 bg-google-surface-high rounded-lg text-xs"
                                                 >
