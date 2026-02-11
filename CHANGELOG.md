@@ -2,6 +2,22 @@
 
 All notable changes to the LyricVault project will be documented in this file.
 
+## [0.3.0] - 2026-02-11
+
+### Added
+
+- **Model Selector**: Choose Gemini Flash / Pro / Lite with tier badges and rates visible in Settings.
+- **Multimodal Transcription**: Standard audio fallback when web lyric research fails.
+- **API Key Tester**: Validate Gemini keys in-app before saving.
+- **Icon Pipeline**: Algorithmic app icon generation in `scripts/`.
+
+### Changed
+
+- **Space Bass UI**: Refined glassmorphism + gold accent theme across Settings and core views.
+- **Task Safety**: Background ingest/research now guarded by locks and smarter retries (500/503 + rate limits).
+- **Dynamic FFmpeg Discovery**: Automatically locates FFmpeg from WinGet/system PATH.
+- **Docs & Versioning**: Synchronized project version to 0.3.0.
+
 ## [0.1.5] - 2026-02-11
 
 ### Added

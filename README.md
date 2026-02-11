@@ -1,8 +1,8 @@
-# ![LyricVault Logo](./frontend/public/logo.svg) LyricVault v0.1.5
+# ![LyricVault Logo](./frontend/public/logo.svg) LyricVault v0.3.0
 
 ## The Ultimate Local Music Sanctuary — Powered by AI
 
-[![Version](https://img.shields.io/badge/version-0.1.5-E2C286?style=for-the-badge)](https://github.com/McEveritts/LyricVault)
+[![Version](https://img.shields.io/badge/version-0.3.0-E2C286?style=for-the-badge)](https://github.com/McEveritts/LyricVault)
 [![License: MIT](https://img.shields.io/badge/License-MIT-E2C286?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Build: Portable & Installer](https://img.shields.io/badge/Build-Portable%20%2B%20Installer-2B2D31?style=for-the-badge)](https://github.com/McEveritts/LyricVault/releases)
 
@@ -16,31 +16,29 @@ Stop relying on streaming services that change metadata or remove tracks. Build 
 
 ---
 
-## 🚀 New in v0.1.5
+## 🚀 New in v0.3.0
 
-### 🧠 Smarter AI Communication
+### 🧠 AI & Model Controls
 
-- **System Instructions**: Dedicated prompts for Research vs. Transcription improve accuracy and cut token waste.
-- **Safety Settings**: Explicit lyrics are no longer silently blocked by content filters.
-- **Server Error Retries**: Gemini 500/503 errors are now auto-retried alongside rate limits.
+- **Model Selector**: Choose Gemini Flash / Pro / Lite with performance badges directly from Settings.
+- **Multimodal Transcription**: Audio-to-lyrics path is now standard and can fall back after web research.
+- **API Key Tester**: Validate your Gemini key before saving.
 
-### 🔒 Backend Resilience
+### 🔒 Reliability
 
-- **Thread-Safe Tasks**: Background processing is now guarded by a threading lock — no more race conditions.
-- **Duplicate Detection**: Re-pasting a URL returns the existing song instead of duplicating it.
-- **Dynamic FFmpeg**: Auto-discovered from WinGet packages on any Windows machine.
-- **Tightened CORS**: Wildcard origin replaced with a specific allowlist.
+- **Thread-Safe Tasks**: Background ingest/research wrapped with locks to prevent races.
+- **Smart Retries**: 500/503 + rate limits now use exponential backoff.
+- **Dynamic FFmpeg Discovery**: Finds WinGet/system FFmpeg automatically.
 
-### 🎨 Frontend Polish
+### 🎨 Space Bass UI
 
-- **Centralized API Config**: Single `API_BASE` constant replaces all hardcoded URLs.
-- **Player UI**: Prev/Next buttons visually disabled with "coming soon" tooltips.
-- **Discovery View**: Graceful `--:--` when duration is unavailable.
+- **Updated Settings 2.0** with Monet-inspired layout.
+- **Glassmorphism + Gold accents** standardized across views.
+- **Icon pipeline** in `scripts/` for consistent app icons.
 
 ### 🧹 Housekeeping
 
-- Removed `beautifulsoup4` and `spotipy` dependencies.
-- Migrated deprecated SQLAlchemy `declarative_base()` and `datetime.utcnow`.
+- Centralized `API_BASE` config; removed unused deps (`beautifulsoup4`, `spotipy`).
 
 ---
 
@@ -73,10 +71,10 @@ Inspired by the Google Pixel 10 Pro and deep house vibes:
 Grab the latest release from the `releases` folder or build it yourself.
 
 **Option A: Installer**
-Run `LyricVault Setup 0.1.5.exe` to install to your system.
+Run `LyricVault Setup 0.3.0.exe` to install to your system.
 
 **Option B: Portable**
-Run `LyricVault 0.1.5.exe` to launch instantly.
+Run `LyricVault 0.3.0.exe` to launch instantly.
 
 ### 2. Configuration
 
