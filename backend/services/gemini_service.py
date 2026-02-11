@@ -124,13 +124,15 @@ class GeminiService:
 
     def validate_key(self, api_key: str) -> bool:
         """
-        Validate the API key by attempting to list models.
-        This is faster and more reliable than generating content.
+        Validate the API key by attempting to generate a small response.
+        This confirms the key actually has permission to generate content.
         """
         try:
-            # lightweight check - just list 1 model
             test_client = genai.Client(api_key=api_key)
-            list(test_client.models.list(config={"page_size": 1}))
+            test_client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents="test"
+            )
             return True
         except Exception as e:
             error_msg = str(e)
@@ -143,6 +145,8 @@ class GeminiService:
                 self._last_validation_error = "Invalid API key format."
             elif "403" in error_msg:
                  self._last_validation_error = "Permission denied. API key may be restricted."
+            elif "429" in error_msg or "Resource has been exhausted" in error_msg:
+                 self._last_validation_error = "Quota exceeded. Check your billing or wait a moment."
             else:
                 self._last_validation_error = f"Connection failed. ({error_msg[:50]}...)"
             

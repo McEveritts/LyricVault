@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
-import API_BASE from '../config/api';
+import Visualizer from './Visualizer';
 
-const SongDetailView = ({ song, isPlaying, onPlayPause, isEmpty, currentTime }) => {
+const SongDetailView = ({ song, isPlaying, onPlayPause, isEmpty, currentTime, analyser }) => {
     const [activeTab, setActiveTab] = useState('lyrics');
     const [researching, setResearching] = useState(false);
     const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash');
@@ -107,12 +106,16 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, isEmpty, currentTime }) 
                     <div className="lg:w-1/3 flex flex-col gap-6">
                         <div className="aspect-square rounded-[2rem] overflow-hidden shadow-2xl bg-google-surface-high border border-white/5 relative group">
                             {song.cover_url ? (
-                                <img src={song.cover_url} alt={song.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                                <img src={song.cover_url} alt={song.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 z-10 relative" />
                             ) : (
-                                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-google-surface to-google-surface-high">
+                                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-google-surface to-google-surface-high z-10 relative">
                                     <span className="text-8xl opacity-20">🎵</span>
                                 </div>
                             )}
+                            {/* Visualizer Background */}
+                            <div className="absolute inset-0 z-0 flex items-end justify-center opacity-40">
+                                <Visualizer analyser={analyser} isPlaying={isPlaying} height={100} width={400} />
+                            </div>
                             {/* Play Overlay (Big) */}
                             <div className={`absolute inset-0 bg-black/20 flex items-center justify-center transition-opacity duration-300 ${isPlaying ? 'opacity-0 hover:opacity-100' : 'opacity-100'}`}>
                                 <button

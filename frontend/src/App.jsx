@@ -22,9 +22,37 @@ export default function App() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
+  // Audio Context / Visualizer State
+  const [analyser, setAnalyser] = useState(null);
+  const audioContextRef = React.useRef(null);
+  const audioRef = React.useRef(null);
+  const sourceRef = React.useRef(null);
+
   // View State
   const [viewedSong, setViewedSong] = useState(null);
   const [showLyrics, setShowLyrics] = useState(false); // Overlay lyrics
+
+  // Web Audio API Setup
+  React.useEffect(() => {
+    if (isPlaying && !audioContextRef.current && audioRef.current) {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      const context = new AudioContext();
+      const analyserNode = context.createAnalyser();
+      analyserNode.fftSize = 256;
+
+      const source = context.createMediaElementSource(audioRef.current);
+      source.connect(analyserNode);
+      analyserNode.connect(context.destination);
+
+      audioContextRef.current = context;
+      sourceRef.current = source;
+      setAnalyser(analyserNode);
+    }
+
+    if (isPlaying && audioContextRef.current?.state === 'suspended') {
+      audioContextRef.current.resume();
+    }
+  }, [isPlaying]);
 
   const handleIngestSuccess = () => {
     setRefreshKey(prev => prev + 1);
@@ -117,6 +145,7 @@ export default function App() {
             isPlaying={isPlaying && currentSong?.id === viewedSong?.id}
             onPlayPause={handleSongDetailPlayPause}
             currentTime={currentSong?.id === viewedSong?.id ? currentTime : 0}
+            analyser={analyser}
           />
         );
       case 'activity':
@@ -172,6 +201,8 @@ export default function App() {
         }}
         onEnded={() => setIsPlaying(false)}
         onLyricsClick={() => setShowLyrics(true)}
+        analyser={analyser}
+        audioRef={audioRef}
       />
       <LyricsOverlay song={currentSong} isOpen={showLyrics} onClose={() => setShowLyrics(false)} />
     </div>

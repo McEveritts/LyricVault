@@ -314,7 +314,7 @@ const SettingsView = () => {
 
                 {/* About Link */}
                 <div className="text-center pt-8 pb-4">
-                    <p className="text-xs text-google-text-secondary opacity-50">LyricVault v0.1.5 • Designed for Pixel</p>
+                    <p className="text-xs text-google-text-secondary opacity-50">LyricVault v0.2.2 • Designed for Pixel</p>
                 </div>
             </main>
         </>

@@ -40,14 +40,19 @@ const LyricsOverlay = ({ song, isOpen, onClose }) => {
         setIsResearching(true);
         try {
             const response = await fetch(`${API_BASE}/research_lyrics/${song.id}`, {
-                method: 'POST'
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model_id: 'gemini-2.0-flash',
+                    mode: 'auto'
+                })
             });
             const data = await response.json();
 
             if (data.status === 'success') {
                 setCurrentLyrics(data.lyrics);
             } else {
-                alert("AI could not find lyrics for this song. Try checking the title/artist metadata.");
+                alert(data.message || "AI could not find lyrics for this song. Try checking the title/artist metadata.");
             }
         } catch (error) {
             console.error("Research failed:", error);

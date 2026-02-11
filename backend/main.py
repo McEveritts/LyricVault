@@ -231,7 +231,7 @@ async def retry_lyrics(song_id: int, background_tasks: BackgroundTasks, db: Sess
     song.lyrics_synced = False
     db.commit()
     
-    background_tasks.add_task(process_lyrics, song.id, song.title, song.artist.name)
+    background_tasks.add_task(process_lyrics, song.id, song.title, song.artist.name, song.file_path)
     return {"status": "retrying", "song": song.title}
 
 @app.post("/research_lyrics/{song_id}")

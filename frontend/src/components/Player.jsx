@@ -1,4 +1,5 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
+import Visualizer from './Visualizer';
 
 const Player = ({
     currentSong,
@@ -10,10 +11,10 @@ const Player = ({
     onEnded,
     onLyricsClick,
     currentTime,
-    duration
+    duration,
+    analyser,
+    audioRef
 }) => {
-    const audioRef = useRef(null);
-
     // Sync Play/Pause
     useEffect(() => {
         if (currentSong && audioRef.current) {
@@ -61,9 +62,14 @@ const Player = ({
 
     return (
         <div className="fixed bottom-6 left-6 right-6 z-50 animate-in slide-in-from-bottom-20 duration-500">
-            <div className="max-w-5xl mx-auto bg-google-surface-high/90 backdrop-blur-2xl rounded-[2rem] p-4 pr-8 shadow-2xl shadow-black/40 border border-white/5 flex items-center gap-6">
+            <div className="max-w-5xl mx-auto bg-google-surface-high/90 backdrop-blur-2xl rounded-[2rem] p-4 pr-8 shadow-2xl shadow-black/40 border border-white/5 flex items-center gap-6 overflow-hidden relative">
+                {/* Visualizer Background Overlay */}
+                <div className="absolute inset-0 z-0 flex items-center justify-center opacity-20 pointer-events-none">
+                    <Visualizer analyser={analyser} isPlaying={isPlaying} />
+                </div>
+
                 {/* Song Info */}
-                <div className="flex items-center gap-4 min-w-0 w-1/4">
+                <div className="flex items-center gap-4 min-w-0 w-1/4 z-10">
                     {currentSong.cover_url ? (
                         <div className="w-14 h-14 rounded-2xl overflow-hidden shadow-md flex-shrink-0">
                             <img src={currentSong.cover_url} alt={currentSong.title} className="w-full h-full object-cover" />
@@ -80,7 +86,7 @@ const Player = ({
                 </div>
 
                 {/* Controls */}
-                <div className="flex flex-col items-center flex-1 gap-2">
+                <div className="flex flex-col items-center flex-1 gap-2 z-10">
                     <div className="flex items-center gap-6">
                         <button className="text-google-text-secondary/30 cursor-not-allowed" title="Previous track — coming soon" disabled>
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
@@ -121,7 +127,7 @@ const Player = ({
                 </div>
 
                 {/* Volume & Lyrics */}
-                <div className="w-1/4 flex items-center justify-end gap-5">
+                <div className="w-1/4 flex items-center justify-end gap-5 z-10">
                     <input
                         type="range"
                         min="0"
@@ -148,6 +154,7 @@ const Player = ({
                 ref={audioRef}
                 onTimeUpdate={handleTimeUpdate}
                 onEnded={onEnded}
+                crossOrigin="anonymous"
             />
         </div>
     );
