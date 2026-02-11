@@ -140,8 +140,10 @@ class IngestionService:
         logger.info(f"Searching {platform} with query: {search_query}")
         
         try:
+            print(f"[DEBUG] search_platforms: platform={platform}, search_query={search_query}")
             with yt_dlp.YoutubeDL({'quiet': True, 'noplaylist': True, 'ffmpeg_location': FFMPEG_DIR}) as ydl:
                 info = ydl.extract_info(search_query, download=False)
+                print(f"[DEBUG] yt-dlp info retrieved: {bool(info)}")
                 results = []
                 if not info or 'entries' not in info:
                     logger.warning(f"No results found for {platform}")
