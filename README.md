@@ -23,7 +23,7 @@ Built with the sleek design language of the **Google Pixel 10 Pro**, LyricVault 
 
 Found a track on YouTube, Spotify, or SoundCloud? Just paste the URL. LyricVault handles the rest—fetching high-quality audio, cover art, and metadata automatically.
 
-### 🧠 AI-Powered Lyricist (Gemini 2.0)
+### 🧠 AI-Powered Lyricist (Gemini)
 
 Standard lyric databases fail you? LyricVault doesn't.
 
