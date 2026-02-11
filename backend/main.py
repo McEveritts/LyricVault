@@ -70,7 +70,6 @@ app.add_middleware(
         "http://localhost:5173",
         "http://localhost:8000",
         "app://.",
-        "null",  # Electron file:// renderer origin in packaged builds
     ],
     allow_credentials=False,
     allow_methods=["*"],

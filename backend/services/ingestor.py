@@ -27,7 +27,7 @@ def _find_ffmpeg_dir():
         winget_base = os.path.join(app_data, "Microsoft", "WinGet", "Packages")
         if os.path.isdir(winget_base):
             for pkg_dir in os.listdir(winget_base):
-                if "FFmpeg" in pkg_dir:
+                if "FFmpeg" in pkg_dir and re.match(r'^[a-zA-Z0-9\.-]+$', pkg_dir):
                     bin_candidates = glob.glob(os.path.join(winget_base, pkg_dir, "**", "bin"), recursive=True)
                     for bin_dir in bin_candidates:
                         if os.path.isfile(os.path.join(bin_dir, "ffmpeg.exe")):

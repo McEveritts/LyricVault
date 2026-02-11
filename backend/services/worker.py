@@ -298,12 +298,11 @@ class Worker:
         artist = db.query(models.Artist).filter(models.Artist.name == metadata['artist']).first()
         if not artist:
             try:
-                artist = models.Artist(name=metadata['artist'])
-                db.add(artist)
-                db.commit()
-                db.refresh(artist)
+                with db.begin_nested():
+                    artist = models.Artist(name=metadata['artist'])
+                    db.add(artist)
+                    db.flush()
             except IntegrityError:
-                db.rollback()
                 artist = db.query(models.Artist).filter(models.Artist.name == metadata['artist']).first()
             
         song = None
@@ -331,38 +330,35 @@ class Worker:
             song.source_url = url
             song.cover_url = metadata.get('cover_url') or song.cover_url
             try:
-                db.commit()
-                db.refresh(song)
+                with db.begin_nested():
+                    db.flush()
             except IntegrityError:
-                db.rollback()
                 existing_by_path = db.query(models.Song).filter(models.Song.file_path == metadata['file_path']).first()
-                if existing_by_path:
+                if existing_by_path and existing_by_path.id != song.id:
                     song = existing_by_path
                     song.title = metadata.get('title') or song.title
                     song.artist_id = artist.id
                     song.duration = _normalize_duration_seconds(metadata.get('duration'))
                     song.source_url = url
                     song.cover_url = metadata.get('cover_url') or song.cover_url
-                    db.commit()
-                    db.refresh(song)
+                    db.flush()
                 else:
                     raise
         else:
             try:
-                song = models.Song(
-                    title=metadata['title'],
-                    artist_id=artist.id,
-                    file_path=metadata['file_path'],
-                    duration=_normalize_duration_seconds(metadata.get('duration')),
-                    source_url=url,
-                    lyrics_synced=False,
-                    cover_url=metadata.get('cover_url')
-                )
-                db.add(song)
-                db.commit()
-                db.refresh(song)
+                with db.begin_nested():
+                    song = models.Song(
+                        title=metadata['title'],
+                        artist_id=artist.id,
+                        file_path=metadata['file_path'],
+                        duration=_normalize_duration_seconds(metadata.get('duration')),
+                        source_url=url,
+                        lyrics_synced=False,
+                        cover_url=metadata.get('cover_url')
+                    )
+                    db.add(song)
+                    db.flush()
             except IntegrityError:
-                db.rollback()
                 song = db.query(models.Song).filter(models.Song.file_path == metadata['file_path']).first()
 
         job.result_json = json.dumps({"song_id": song.id, "file_path": song.file_path})
@@ -383,7 +379,7 @@ class Worker:
                 })
             )
             db.add(new_job)
-        db.commit()
+        db.flush()
 
     def _handle_lyrics(self, db: Session, job: models.Job, payload: dict):
         song_id = payload.get("song_id")

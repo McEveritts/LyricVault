@@ -2,24 +2,15 @@ import React, { useEffect, useRef, useState, useMemo } from 'react';
 import API_BASE from '../config/api';
 
 const LyricsOverlay = ({ song, isOpen, onClose, currentTime }) => {
-    const contentRef = useRef(null);
     const scrollContainerRef = useRef(null);
     const activeLineRef = useRef(null);
     const [isResearching, setIsResearching] = useState(false);
-    const [currentLyrics, setCurrentLyrics] = useState(null);
+    const [userLyrics, setUserLyrics] = useState(null);
 
     useEffect(() => {
-        if (isOpen) {
-            document.body.style.overflow = 'hidden';
-            setCurrentLyrics(song?.lyrics);
-        } else {
-            document.body.style.overflow = 'unset';
-            setIsResearching(false);
-        }
-        return () => {
-            document.body.style.overflow = 'unset';
-        };
-    }, [isOpen, song]);
+        document.body.style.overflow = isOpen ? 'hidden' : 'unset';
+        return () => { document.body.style.overflow = 'unset'; };
+    }, [isOpen]);
 
     const handleResearch = async () => {
         setIsResearching(true);
@@ -35,7 +26,7 @@ const LyricsOverlay = ({ song, isOpen, onClose, currentTime }) => {
             const data = await response.json();
 
             if (data.status === 'success') {
-                setCurrentLyrics(data.lyrics);
+                setUserLyrics(data.lyrics);
             } else {
                 alert(data.message || "AI could not find lyrics for this song.");
             }
@@ -47,6 +38,11 @@ const LyricsOverlay = ({ song, isOpen, onClose, currentTime }) => {
     };
 
     // Advanced LRC parsing
+    const currentLyrics = useMemo(() => {
+        if (userLyrics) return userLyrics;
+        return song?.lyrics || null;
+    }, [userLyrics, song]);
+
     const parsedLyrics = useMemo(() => {
         if (!currentLyrics || currentLyrics === "Lyrics not found.") return [];
 

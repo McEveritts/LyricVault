@@ -23,13 +23,6 @@ export default function App() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
-  // Library/Queue State
-  const [librarySongs, setLibrarySongs] = useState([]);
-  const [queue, setQueue] = useState([]);
-  const [playHistory, setPlayHistory] = useState([]);
-  const [shuffleMode, setShuffleMode] = useState(false);
-  const [repeatMode, setRepeatMode] = useState('off'); // 'off', 'all', 'one'
-
   // Audio Context / Visualizer State
   const [analyser, setAnalyser] = useState(null);
   const audioContextRef = React.useRef(null);
@@ -117,34 +110,9 @@ export default function App() {
     return song;
   };
 
-  React.useEffect(() => {
-    const fetchLibrary = async () => {
-      try {
-        const response = await fetch(`${API_BASE}/library`);
-        if (!response.ok) return;
-        const data = await response.json();
-        setLibrarySongs(data);
-      } catch (error) {
-        console.error('Failed to fetch library:', error);
-      }
-    };
-
-    fetchLibrary();
-    const interval = setInterval(fetchLibrary, 10000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const handlePlaySong = async (song, clearQueue = false) => {
+  const handlePlaySong = async (song) => {
     const fullSong = await fetchSongDetails(song);
     if (!fullSong) return;
-
-    if (currentSong) {
-      setPlayHistory(prev => [currentSong, ...prev].slice(0, 50));
-    }
-
-    if (clearQueue) {
-      setQueue([]);
-    }
 
     if (fullSong.status === 'cached' && fullSong.stream_url) {
       clearRehydrating(fullSong.id);
@@ -165,64 +133,6 @@ export default function App() {
       stream_url: fullSong.stream_url || '',
     });
     setIsPlaying(false);
-  };
-
-  const handleQueueNext = (song) => {
-    setQueue(prev => [song, ...prev]);
-  };
-
-  const handleAddToQueue = (song) => {
-    setQueue(prev => [...prev, song]);
-  };
-
-  const handleNextTrack = () => {
-    if (repeatMode === 'one' && currentSong) {
-      if (audioRef.current) audioRef.current.currentTime = 0;
-      setIsPlaying(true);
-      return;
-    }
-
-    if (queue.length > 0) {
-      const nextSong = queue[0];
-      setQueue(prev => prev.slice(1));
-      handlePlaySong(nextSong);
-      return;
-    }
-
-    if (shuffleMode && librarySongs.length > 0) {
-      const randomIndex = Math.floor(Math.random() * librarySongs.length);
-      const nextSong = librarySongs[randomIndex];
-      handlePlaySong(nextSong);
-      return;
-    }
-
-    if (repeatMode === 'all' && librarySongs.length > 0) {
-      // Find current index and play next
-      const currentIndex = librarySongs.findIndex(s => s.id === currentSong?.id);
-      const nextIndex = (currentIndex + 1) % librarySongs.length;
-      handlePlaySong(librarySongs[nextIndex]);
-      return;
-    }
-
-    setIsPlaying(false);
-  };
-
-  const handlePreviousTrack = () => {
-    if (currentTime > 3) {
-      if (audioRef.current) audioRef.current.currentTime = 0;
-      return;
-    }
-
-    if (playHistory.length > 0) {
-      const prevSong = playHistory[0];
-      setPlayHistory(prev => prev.slice(1));
-      // When going back, we don't want to add the current song to history again (it's handled in handlePlaySong)
-      // but we might want to put current song on top of queue if we want to "undo" the skip.
-      if (currentSong) {
-        setQueue(prev => [currentSong, ...prev]);
-      }
-      handlePlaySong(prevSong);
-    }
   };
 
   const handleViewSong = async (song) => {
@@ -321,9 +231,7 @@ export default function App() {
                 <LibraryGrid
                   refreshTrigger={refreshKey}
                   rehydratingSongIds={rehydratingSongIds}
-                  onPlay={(song) => handlePlaySong(song, true)}
-                  onQueueNext={handleQueueNext}
-                  onAddToQueue={handleAddToQueue}
+                  onPlay={handlePlaySong}
                   onView={handleViewSong}
                 />
               </div>
@@ -340,9 +248,7 @@ export default function App() {
               <LibraryGrid
                 refreshTrigger={refreshKey}
                 rehydratingSongIds={rehydratingSongIds}
-                onPlay={(song) => handlePlaySong(song, true)}
-                onQueueNext={handleQueueNext}
-                onAddToQueue={handleAddToQueue}
+                onPlay={handlePlaySong}
                 onView={handleViewSong}
               />
             </main>
@@ -368,8 +274,6 @@ export default function App() {
         return (
           <DiscoveryView
             onIngest={handleIngestSuccess}
-            onQueueNext={handleQueueNext}
-            onAddToQueue={handleAddToQueue}
           />
         );
       case 'playlists':
@@ -407,8 +311,6 @@ export default function App() {
         currentSong={currentSong}
         isPlaying={isPlaying}
         onPlayPause={handlePlayPause}
-        onNext={handleNextTrack}
-        onPrevious={handlePreviousTrack}
         onStreamError={handleStreamError}
         volume={volume}
         onVolumeChange={setVolume}
@@ -418,17 +320,11 @@ export default function App() {
           setCurrentTime(curr);
           setDuration(dur);
         }}
-        onEnded={handleNextTrack}
+        onEnded={() => setIsPlaying(false)}
         onLyricsClick={() => setShowLyrics(true)}
         onSeek={handleSeek}
         analyser={analyser}
         audioRef={audioRef}
-        queue={queue}
-        setQueue={setQueue}
-        shuffleMode={shuffleMode}
-        setShuffleMode={setShuffleMode}
-        repeatMode={repeatMode}
-        setRepeatMode={setRepeatMode}
       />
       {rehydratingSongIds.length > 0 && (
         <div className="fixed top-6 right-6 z-[60] bg-google-surface/95 border border-google-surface-high rounded-2xl px-4 py-3 shadow-2xl backdrop-blur-md flex items-center gap-3">
