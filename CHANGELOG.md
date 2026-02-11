@@ -2,6 +2,12 @@
 
 All notable changes to the LyricVault project will be documented in this file.
 
+## [0.3.1] - Unreleased
+
+### Added
+
+-
+
 ## [0.3.0] - 2026-02-11
 
 ### Added

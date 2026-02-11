@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import API_BASE from '../config/api';
 
-const DiscoveryView = ({ onIngest }) => {
+const DiscoveryView = ({ onIngest, onQueueNext, onAddToQueue }) => {
     const [query, setQuery] = useState('');
     const [platform, setPlatform] = useState('youtube');
     const [results, setResults] = useState([]);
@@ -96,6 +96,8 @@ const DiscoveryView = ({ onIngest }) => {
                                 key={result.id}
                                 result={result}
                                 onIngest={onIngest}
+                                onQueueNext={onQueueNext}
+                                onAddToQueue={onAddToQueue}
                             />
                         ))}
                     </div>
@@ -105,11 +107,11 @@ const DiscoveryView = ({ onIngest }) => {
     );
 };
 
-const SearchResultItem = ({ result, onIngest }) => {
-    const [ingesting, setIngesting] = useState(false);
+const SearchResultItem = ({ result, onIngest, onQueueNext, onAddToQueue }) => {
+    const [status, setStatus] = useState('idle'); // 'idle', 'ingesting', 'queuing'
 
-    const handleIngest = async () => {
-        setIngesting(true);
+    const handleAction = async (actionType) => {
+        setStatus(actionType === 'ingest' ? 'ingesting' : 'queuing');
         try {
             const response = await fetch(`${API_BASE}/ingest`, {
                 method: 'POST',
@@ -117,12 +119,20 @@ const SearchResultItem = ({ result, onIngest }) => {
                 body: JSON.stringify({ url: result.url }),
             });
             if (response.ok) {
-                if (onIngest) onIngest();
+                const songData = await response.json();
+                // If it was just an ingest, call onIngest
+                if (actionType === 'ingest') {
+                    if (onIngest) onIngest();
+                } else if (actionType === 'queueNext') {
+                    if (onQueueNext) onQueueNext(songData);
+                } else if (actionType === 'addToQueue') {
+                    if (onAddToQueue) onAddToQueue(songData);
+                }
             }
         } catch (err) {
-            console.error("Ingestion failed:", err);
+            console.error(`${actionType} failed:`, err);
         } finally {
-            setIngesting(false);
+            setStatus('idle');
         }
     };
 
@@ -148,32 +158,46 @@ const SearchResultItem = ({ result, onIngest }) => {
                 <p className="text-xs text-google-text-secondary truncate font-medium">{result.artist}</p>
             </div>
 
-            <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
-                <a
-                    href={result.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[10px] font-bold uppercase tracking-widest text-google-text-secondary hover:text-google-gold transition-colors"
-                >
-                    View Source
-                </a>
+            <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => handleAction('queueNext')}
+                        disabled={status !== 'idle'}
+                        className="w-8 h-8 rounded-full bg-white/5 hover:bg-google-gold hover:text-black flex items-center justify-center transition-all disabled:opacity-50"
+                        title="Play Next"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                            <path fillRule="evenodd" d="M2 10a.75.75 0 01.75-.75h12.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10z" clipRule="evenodd" />
+                            <path fillRule="evenodd" d="M10.22 5.22a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 01-1.06-1.06L13.94 10l-3.72-3.72a.75.75 0 010-1.06z" clipRule="evenodd" />
+                        </svg>
+                    </button>
+                    <button
+                        onClick={() => handleAction('addToQueue')}
+                        disabled={status !== 'idle'}
+                        className="w-8 h-8 rounded-full bg-white/5 hover:bg-white hover:text-black flex items-center justify-center transition-all disabled:opacity-50"
+                        title="Add to Queue"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                            <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+                        </svg>
+                    </button>
+                </div>
+
                 <button
-                    onClick={handleIngest}
-                    disabled={ingesting}
-                    className={`px-4 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-2 ${ingesting
+                    onClick={() => handleAction('ingest')}
+                    disabled={status !== 'idle'}
+                    className={`px-4 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-2 ${status === 'ingesting'
                         ? 'bg-google-surface-high text-google-text-secondary'
                         : 'bg-white/5 text-white hover:bg-google-gold hover:text-black shadow-inner'
                         }`}
                 >
-                    {ingesting ? (
+                    {status === 'ingesting' ? (
                         <>
                             <span className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin"></span>
                             <span>Adding...</span>
                         </>
                     ) : (
-                        <>
-                            <span>Add to Library</span>
-                        </>
+                        <span>Add to Library</span>
                     )}
                 </button>
             </div>

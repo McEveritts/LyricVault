@@ -39,14 +39,14 @@ extraResources:
   - from: assets/
     to: assets/
     filter:
-      - "icon_v0.1.1.ico"
+      - "icon.ico"
 
 win:
   target:
     - target: nsis
       arch:
         - x64
-  icon: assets/icon_v0.1.1.ico
+  icon: assets/icon.ico
   artifactName: "LyricVault ${version}.${ext}"
   signAndEditExecutable: false
   forceCodeSigning: false

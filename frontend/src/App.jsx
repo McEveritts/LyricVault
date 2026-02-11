@@ -14,6 +14,7 @@ import DiscoveryView from './components/DiscoveryView';
 export default function App() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [activeTab, setActiveTab] = useState('home');
+  const [rehydratingSongIds, setRehydratingSongIds] = useState([]);
 
   // Player State
   const [currentSong, setCurrentSong] = useState(null);
@@ -21,6 +22,13 @@ export default function App() {
   const [volume, setVolume] = useState(0.7);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+
+  // Library/Queue State
+  const [librarySongs, setLibrarySongs] = useState([]);
+  const [queue, setQueue] = useState([]);
+  const [playHistory, setPlayHistory] = useState([]);
+  const [shuffleMode, setShuffleMode] = useState(false);
+  const [repeatMode, setRepeatMode] = useState('off'); // 'off', 'all', 'one'
 
   // Audio Context / Visualizer State
   const [analyser, setAnalyser] = useState(null);
@@ -58,11 +66,50 @@ export default function App() {
     setRefreshKey(prev => prev + 1);
   };
 
+  const markRehydrating = (songId) => {
+    if (!songId) return;
+    setRehydratingSongIds(prev => (prev.includes(songId) ? prev : [...prev, songId]));
+  };
+
+  const clearRehydrating = (songId) => {
+    setRehydratingSongIds(prev => prev.filter(id => id !== songId));
+  };
+
+  const requestRehydrate = async (song) => {
+    if (!song?.source_url) return false;
+    markRehydrating(song.id);
+
+    try {
+      const response = await fetch(`${API_BASE}/ingest`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: song.source_url,
+          rehydrate: true,
+          song_id: song.id,
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(`Rehydration request failed (${response.status})`);
+      }
+      setRefreshKey(prev => prev + 1);
+      return true;
+    } catch (error) {
+      console.error('Failed to request audio rehydration:', error);
+      clearRehydrating(song.id);
+      return false;
+    }
+  };
+
   const fetchSongDetails = async (song) => {
     try {
       const response = await fetch(`${API_BASE}/song/${song.id}`);
       if (response.ok) {
-        return await response.json();
+        const data = await response.json();
+        if (data.status === 're-downloading') {
+          markRehydrating(data.id);
+        }
+        return data;
       }
     } catch (error) {
       console.error("Failed to fetch song details:", error);
@@ -70,20 +117,177 @@ export default function App() {
     return song;
   };
 
-  const handlePlaySong = async (song) => {
+  React.useEffect(() => {
+    const fetchLibrary = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/library`);
+        if (!response.ok) return;
+        const data = await response.json();
+        setLibrarySongs(data);
+      } catch (error) {
+        console.error('Failed to fetch library:', error);
+      }
+    };
+
+    fetchLibrary();
+    const interval = setInterval(fetchLibrary, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handlePlaySong = async (song, clearQueue = false) => {
     const fullSong = await fetchSongDetails(song);
-    setCurrentSong(fullSong);
-    setIsPlaying(true);
+    if (!fullSong) return;
+
+    if (currentSong) {
+      setPlayHistory(prev => [currentSong, ...prev].slice(0, 50));
+    }
+
+    if (clearQueue) {
+      setQueue([]);
+    }
+
+    if (fullSong.status === 'cached' && fullSong.stream_url) {
+      clearRehydrating(fullSong.id);
+      setCurrentSong(fullSong);
+      setIsPlaying(true);
+      return;
+    }
+
+    if (fullSong.status === 'expired') {
+      await requestRehydrate(fullSong);
+    } else if (fullSong.status === 're-downloading') {
+      markRehydrating(fullSong.id);
+    }
+
+    setCurrentSong({
+      ...fullSong,
+      status: fullSong.status === 'cached' ? 'cached' : (fullSong.source_url ? 're-downloading' : 'expired'),
+      stream_url: fullSong.stream_url || '',
+    });
+    setIsPlaying(false);
+  };
+
+  const handleQueueNext = (song) => {
+    setQueue(prev => [song, ...prev]);
+  };
+
+  const handleAddToQueue = (song) => {
+    setQueue(prev => [...prev, song]);
+  };
+
+  const handleNextTrack = () => {
+    if (repeatMode === 'one' && currentSong) {
+      if (audioRef.current) audioRef.current.currentTime = 0;
+      setIsPlaying(true);
+      return;
+    }
+
+    if (queue.length > 0) {
+      const nextSong = queue[0];
+      setQueue(prev => prev.slice(1));
+      handlePlaySong(nextSong);
+      return;
+    }
+
+    if (shuffleMode && librarySongs.length > 0) {
+      const randomIndex = Math.floor(Math.random() * librarySongs.length);
+      const nextSong = librarySongs[randomIndex];
+      handlePlaySong(nextSong);
+      return;
+    }
+
+    if (repeatMode === 'all' && librarySongs.length > 0) {
+      // Find current index and play next
+      const currentIndex = librarySongs.findIndex(s => s.id === currentSong?.id);
+      const nextIndex = (currentIndex + 1) % librarySongs.length;
+      handlePlaySong(librarySongs[nextIndex]);
+      return;
+    }
+
+    setIsPlaying(false);
+  };
+
+  const handlePreviousTrack = () => {
+    if (currentTime > 3) {
+      if (audioRef.current) audioRef.current.currentTime = 0;
+      return;
+    }
+
+    if (playHistory.length > 0) {
+      const prevSong = playHistory[0];
+      setPlayHistory(prev => prev.slice(1));
+      // When going back, we don't want to add the current song to history again (it's handled in handlePlaySong)
+      // but we might want to put current song on top of queue if we want to "undo" the skip.
+      if (currentSong) {
+        setQueue(prev => [currentSong, ...prev]);
+      }
+      handlePlaySong(prevSong);
+    }
   };
 
   const handleViewSong = async (song) => {
     const fullSong = await fetchSongDetails(song);
+    if (fullSong?.status === 're-downloading') {
+      markRehydrating(fullSong.id);
+    }
     setViewedSong(fullSong);
     setActiveTab('song-detail');
   };
 
+  const handleStreamError = async (song) => {
+    if (!song) return;
+    const didQueue = await requestRehydrate(song);
+    if (!didQueue) return;
+    setCurrentSong(prev => (
+      prev && prev.id === song.id
+        ? { ...prev, status: 're-downloading', stream_url: '' }
+        : prev
+    ));
+    setIsPlaying(false);
+  };
+
+  React.useEffect(() => {
+    if (rehydratingSongIds.length === 0) return undefined;
+
+    const interval = setInterval(async () => {
+      const pendingIds = [...rehydratingSongIds];
+      for (const songId of pendingIds) {
+        try {
+          const response = await fetch(`${API_BASE}/song/${songId}`);
+          if (!response.ok) continue;
+          const song = await response.json();
+          if (song.status === 'cached' && song.stream_url) {
+            setRehydratingSongIds(prev => prev.filter(id => id !== songId));
+            setRefreshKey(prev => prev + 1);
+            setViewedSong(prev => (prev?.id === song.id ? song : prev));
+            setCurrentSong(prev => {
+              if (prev?.id !== song.id) return prev;
+              return song;
+            });
+            if (currentSong?.id === song.id) {
+              setIsPlaying(true);
+            }
+          } else if (song.status === 'expired' && !song.source_url) {
+            setRehydratingSongIds(prev => prev.filter(id => id !== songId));
+          }
+        } catch (error) {
+          console.error('Polling rehydration status failed:', error);
+        }
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [rehydratingSongIds, currentSong?.id]);
+
   const handlePlayPause = () => {
     setIsPlaying(!isPlaying);
+  };
+
+  const handleSeek = (time) => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = time;
+      setCurrentTime(time);
+    }
   };
 
   const handleSongDetailPlayPause = () => {
@@ -116,7 +320,10 @@ export default function App() {
                 </div>
                 <LibraryGrid
                   refreshTrigger={refreshKey}
-                  onPlay={handlePlaySong}
+                  rehydratingSongIds={rehydratingSongIds}
+                  onPlay={(song) => handlePlaySong(song, true)}
+                  onQueueNext={handleQueueNext}
+                  onAddToQueue={handleAddToQueue}
                   onView={handleViewSong}
                 />
               </div>
@@ -132,7 +339,10 @@ export default function App() {
             <main className="max-w-6xl mx-auto py-8 px-8">
               <LibraryGrid
                 refreshTrigger={refreshKey}
-                onPlay={handlePlaySong}
+                rehydratingSongIds={rehydratingSongIds}
+                onPlay={(song) => handlePlaySong(song, true)}
+                onQueueNext={handleQueueNext}
+                onAddToQueue={handleAddToQueue}
                 onView={handleViewSong}
               />
             </main>
@@ -155,7 +365,13 @@ export default function App() {
       case 'settings':
         return <SettingsView />;
       case 'discover':
-        return <DiscoveryView onIngest={handleIngestSuccess} />;
+        return (
+          <DiscoveryView
+            onIngest={handleIngestSuccess}
+            onQueueNext={handleQueueNext}
+            onAddToQueue={handleAddToQueue}
+          />
+        );
       case 'playlists':
         return (
           <div className="flex items-center justify-center h-full text-google-text-secondary flex-col gap-4">
@@ -191,6 +407,9 @@ export default function App() {
         currentSong={currentSong}
         isPlaying={isPlaying}
         onPlayPause={handlePlayPause}
+        onNext={handleNextTrack}
+        onPrevious={handlePreviousTrack}
+        onStreamError={handleStreamError}
         volume={volume}
         onVolumeChange={setVolume}
         currentTime={currentTime}
@@ -199,14 +418,30 @@ export default function App() {
           setCurrentTime(curr);
           setDuration(dur);
         }}
-        onEnded={() => setIsPlaying(false)}
+        onEnded={handleNextTrack}
         onLyricsClick={() => setShowLyrics(true)}
+        onSeek={handleSeek}
         analyser={analyser}
         audioRef={audioRef}
+        queue={queue}
+        setQueue={setQueue}
+        shuffleMode={shuffleMode}
+        setShuffleMode={setShuffleMode}
+        repeatMode={repeatMode}
+        setRepeatMode={setRepeatMode}
       />
-      <LyricsOverlay song={currentSong} isOpen={showLyrics} onClose={() => setShowLyrics(false)} />
+      {rehydratingSongIds.length > 0 && (
+        <div className="fixed top-6 right-6 z-[60] bg-google-surface/95 border border-google-surface-high rounded-2xl px-4 py-3 shadow-2xl backdrop-blur-md flex items-center gap-3">
+          <span className="w-4 h-4 border-2 border-google-gold/40 border-t-google-gold rounded-full animate-spin"></span>
+          <div className="flex flex-col">
+            <span className="text-sm font-semibold text-google-text">Preparing Audio...</span>
+            <span className="text-[11px] text-google-text-secondary">
+              {rehydratingSongIds.length} track{rehydratingSongIds.length === 1 ? '' : 's'} in queue
+            </span>
+          </div>
+        </div>
+      )}
+      <LyricsOverlay song={currentSong} isOpen={showLyrics} onClose={() => setShowLyrics(false)} currentTime={currentTime} />
     </div>
   );
 }
-
-

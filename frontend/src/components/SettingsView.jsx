@@ -314,13 +314,50 @@ const SettingsView = () => {
                     </div>
                 </section>
 
+                {/* System Status Section */}
+                <section className="bg-google-surface rounded-3xl p-6 border border-google-surface-high">
+                    <div className="flex items-start gap-5 mb-6">
+                        <div className="w-12 h-12 rounded-full bg-google-surface-high flex items-center justify-center flex-shrink-0">
+                            <span className="text-2xl">⚙️</span>
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-medium text-google-text">System Status</h3>
+                            <p className="text-sm text-google-text-secondary mt-1">
+                                Check the status of core LyricVault services.
+                            </p>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <SystemComponent name="API Server" status="online" description="Handles backend requests." />
+                        <SystemComponent name="Lyric Fetcher" status="online" description="syncedlyrics engine." />
+                        <SystemComponent name="Audio Core" status="online" description="yt-dlp binary." />
+                        <SystemComponent name="Database" status="online" description="SQLite storage." />
+                    </div>
+                </section>
+
                 {/* About Link */}
                 <div className="text-center pt-8 pb-4">
-                    <p className="text-xs text-google-text-secondary opacity-50">LyricVault v0.3.0 • Designed for Pixel</p>
+                    <p className="text-xs text-google-text-secondary opacity-50">LyricVault v0.3.1 • Designed for Pixel</p>
                 </div>
             </main>
         </>
     );
 };
+
+const SystemComponent = ({ name, status, description }) => (
+    <div className="bg-google-surface-high/30 border border-white/5 rounded-2xl p-4 flex items-center gap-4">
+        <div className={`w-2.5 h-2.5 rounded-full ${status === 'online' ? 'bg-green-400' : 'bg-red-400'} shadow-[0_0_8px_rgba(74,222,128,0.2)]`}></div>
+        <div className="flex-1 min-w-0">
+            <p className="text-google-text text-sm font-medium">{name}</p>
+            <p className="text-google-text-secondary text-[10px] truncate">{description}</p>
+        </div>
+        <span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider ${status === 'online'
+            ? 'bg-green-400/10 text-green-400 border border-green-400/20'
+            : 'bg-red-400/10 text-red-400 border border-red-400/20'
+            }`}>
+            {status}
+        </span>
+    </div>
+);
 
 export default SettingsView;

@@ -1,8 +1,8 @@
-# ![LyricVault Logo](./frontend/public/logo.svg) LyricVault v0.3.0
+# ![LyricVault Logo](./frontend/public/logo.svg) LyricVault v0.3.1
 
 ## The Ultimate Local Music Sanctuary — Powered by AI
 
-[![Version](https://img.shields.io/badge/version-0.3.0-E2C286?style=for-the-badge)](https://github.com/McEveritts/LyricVault)
+[![Version](https://img.shields.io/badge/version-0.3.1-E2C286?style=for-the-badge)](https://github.com/McEveritts/LyricVault)
 [![License: MIT](https://img.shields.io/badge/License-MIT-E2C286?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Build: Portable & Installer](https://img.shields.io/badge/Build-Portable%20%2B%20Installer-2B2D31?style=for-the-badge)](https://github.com/McEveritts/LyricVault/releases)
 

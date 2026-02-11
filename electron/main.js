@@ -35,9 +35,9 @@ function getFfmpegDir() {
 
 function getWindowIconPath() {
     if (isDev) {
-        return path.join(__dirname, '..', 'assets', 'icon_v0.1.1.ico');
+        return path.join(__dirname, '..', 'assets', 'icon.ico');
     }
-    return getResourcePath('assets', 'icon_v0.1.1.ico');
+    return getResourcePath('assets', 'icon.ico');
 }
 
 // ── Backend Process ──────────────────────────────────────────────────

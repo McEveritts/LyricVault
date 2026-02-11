@@ -30,21 +30,33 @@ class Worker:
         self.worker_id = worker_id or f"worker_{socket.gethostname()}_{os.getpid()}"
         self._stop_event = threading.Event()
         self._thread = None
+        self._cleanup_thread = None
         self.lease_duration = timedelta(minutes=5)
         self.heartbeat_interval_seconds = 60
+        self.cleanup_interval_seconds = 10 * 60
+        self.audio_ttl_seconds = 60 * 60
+        backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.downloads_dir = os.path.join(backend_dir, "downloads")
+        self._audio_extensions = {
+            ".mp3", ".m4a", ".wav", ".flac", ".ogg", ".aac", ".opus", ".webm", ".mp4"
+        }
 
     def start(self):
         if self._thread and self._thread.is_alive():
             return
         self._stop_event.clear()
         self._thread = threading.Thread(target=self._run, daemon=True, name="JobWorker")
+        self._cleanup_thread = threading.Thread(target=self._cleanup_loop, daemon=True, name="AudioCleanupWorker")
         self._thread.start()
+        self._cleanup_thread.start()
         logger.info(f"Worker {self.worker_id} started.")
 
     def stop(self):
         self._stop_event.set()
         if self._thread:
             self._thread.join()
+        if self._cleanup_thread:
+            self._cleanup_thread.join()
         logger.info(f"Worker {self.worker_id} stopped.")
 
     def _run(self):
@@ -98,6 +110,64 @@ class Worker:
             if not renewed:
                 logger.warning(f"Heartbeat stopped for job {job_id}; lease is no longer owned by {self.worker_id}.")
                 break
+
+    def _cleanup_loop(self):
+        # Run once at startup, then every cleanup interval.
+        self._cleanup_cached_audio()
+        while not self._stop_event.wait(self.cleanup_interval_seconds):
+            try:
+                self._cleanup_cached_audio()
+            except Exception as e:
+                logger.error(f"Audio cleanup loop error: {e}", exc_info=True)
+
+    def _cleanup_cached_audio(self):
+        if not os.path.isdir(self.downloads_dir):
+            return
+
+        now_ts = datetime.now(timezone.utc).timestamp()
+        removed_paths: list[str] = []
+
+        for entry in os.scandir(self.downloads_dir):
+            if not entry.is_file():
+                continue
+            _, ext = os.path.splitext(entry.name)
+            if ext.lower() not in self._audio_extensions:
+                continue
+
+            try:
+                modified_ts = entry.stat().st_mtime
+            except OSError:
+                continue
+
+            if (now_ts - modified_ts) < self.audio_ttl_seconds:
+                continue
+
+            absolute_path = os.path.abspath(entry.path)
+            try:
+                os.remove(absolute_path)
+                removed_paths.append(absolute_path)
+                logger.info(f"Removed expired cached audio: {absolute_path}")
+            except FileNotFoundError:
+                continue
+            except OSError as e:
+                logger.warning(f"Failed to remove expired audio {absolute_path}: {e}")
+
+        if not removed_paths:
+            return
+
+        db = SessionLocal()
+        try:
+            songs = db.query(models.Song).filter(models.Song.file_path.in_(removed_paths)).all()
+            for song in songs:
+                song.file_path = None
+            if songs:
+                db.commit()
+                logger.info(f"Marked {len(songs)} song record(s) as expired after cache cleanup.")
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Failed to update song cache metadata after cleanup: {e}", exc_info=True)
+        finally:
+            db.close()
 
     def _requeue_stale_jobs(self):
         db = SessionLocal()
@@ -209,6 +279,7 @@ class Worker:
     def _handle_ingest(self, db: Session, job: models.Job, payload: dict):
         from sqlalchemy.exc import IntegrityError
         url = payload.get("url")
+        payload_song_id = payload.get("song_id")
         # Actual work
         job.progress = 20
         db.commit()
@@ -235,9 +306,48 @@ class Worker:
                 db.rollback()
                 artist = db.query(models.Artist).filter(models.Artist.name == metadata['artist']).first()
             
-        # Race protection for Song
-        song = db.query(models.Song).filter(models.Song.file_path == metadata['file_path']).first()
+        song = None
+        if isinstance(payload_song_id, int):
+            song = db.get(models.Song, payload_song_id)
+        elif isinstance(payload_song_id, str) and payload_song_id.isdigit():
+            song = db.get(models.Song, int(payload_song_id))
+
+        if not song and url:
+            song = (
+                db.query(models.Song)
+                .filter(models.Song.source_url == url)
+                .order_by(models.Song.id.desc())
+                .first()
+            )
+
         if not song:
+            song = db.query(models.Song).filter(models.Song.file_path == metadata['file_path']).first()
+
+        if song:
+            song.title = metadata.get('title') or song.title
+            song.artist_id = artist.id
+            song.file_path = metadata['file_path']
+            song.duration = _normalize_duration_seconds(metadata.get('duration'))
+            song.source_url = url
+            song.cover_url = metadata.get('cover_url') or song.cover_url
+            try:
+                db.commit()
+                db.refresh(song)
+            except IntegrityError:
+                db.rollback()
+                existing_by_path = db.query(models.Song).filter(models.Song.file_path == metadata['file_path']).first()
+                if existing_by_path:
+                    song = existing_by_path
+                    song.title = metadata.get('title') or song.title
+                    song.artist_id = artist.id
+                    song.duration = _normalize_duration_seconds(metadata.get('duration'))
+                    song.source_url = url
+                    song.cover_url = metadata.get('cover_url') or song.cover_url
+                    db.commit()
+                    db.refresh(song)
+                else:
+                    raise
+        else:
             try:
                 song = models.Song(
                     title=metadata['title'],

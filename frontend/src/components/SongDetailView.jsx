@@ -81,6 +81,52 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, isEmpty, currentTime, an
         }
     }, [activeLineIndex]);
 
+    // --- Export Logic ---
+    const handleExportTxt = () => {
+        if (!song?.lyrics) return;
+        const blob = new Blob([song.lyrics], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const filename = `${song.title} - ${song.artist}`.replace(/[<>:"/\\|?*]/g, '_');
+        a.download = `${filename}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
+    const handleExportCsv = () => {
+        if (!lyrics.length) return;
+
+        const formatTimeCSV = (seconds) => {
+            if (seconds === -1) return "";
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            const ms = Math.floor((seconds % 1) * 1000);
+            return `${mins}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
+        };
+
+        let csvContent = "Time,Lyric\n";
+        lyrics.forEach(line => {
+            const timeStr = formatTimeCSV(line.time);
+            const escapedContent = `"${line.content.replace(/"/g, '""')}"`;
+            csvContent += `${timeStr},${escapedContent}\n`;
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const filename = `${song.title} - ${song.artist}`.replace(/[<>:"/\\|?*]/g, '_');
+        a.download = `${filename}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
+
 
 
     if (!song && isEmpty) {
@@ -174,16 +220,30 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, isEmpty, currentTime, an
                         {/* Content Area */}
                         <div className="flex-1 overflow-y-auto p-6 relative scroll-smooth" ref={lyricsContainerRef}>
                             {activeTab === 'lyrics' && (
-                                <div className="space-y-6 text-center py-10 relative">
+                                <div className="space-y-6 text-center py-10 relative group">
                                     {(lyrics.length > 0 && song.lyrics !== "Lyrics not found.") ? (
                                         <>
-                                            <div className="absolute top-0 right-0 z-10 opacity-0 hover:opacity-100 transition-opacity">
+                                            <div className="absolute top-0 right-0 z-10 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button
+                                                    onClick={handleExportTxt}
+                                                    className="px-2 py-1 bg-google-surface-high rounded-lg text-[10px] font-bold text-google-text-secondary hover:text-google-gold transition-colors"
+                                                    title="Export as TXT"
+                                                >
+                                                    TXT
+                                                </button>
+                                                <button
+                                                    onClick={handleExportCsv}
+                                                    className="px-2 py-1 bg-google-surface-high rounded-lg text-[10px] font-bold text-google-text-secondary hover:text-google-gold transition-colors"
+                                                    title="Export as CSV"
+                                                >
+                                                    CSV
+                                                </button>
                                                 <button
                                                     onClick={() => {
                                                         const researchSection = document.getElementById('research-section');
                                                         if (researchSection) researchSection.scrollIntoView({ behavior: 'smooth' });
                                                     }}
-                                                    className="p-2 bg-google-surface-high rounded-lg text-xs"
+                                                    className="px-2 py-1 bg-google-surface-high rounded-lg text-[10px] font-bold text-google-text-secondary hover:text-google-gold transition-colors"
                                                 >
                                                     Wrong Lyrics?
                                                 </button>

@@ -86,32 +86,6 @@ const ActivityView = () => {
                     </div>
                 </section>
 
-                {/* AI System Status */}
-                <section>
-                    <h3 className="text-lg font-semibold text-white mb-4">System Components</h3>
-                    <div className="space-y-2">
-                        <SystemComponent
-                            name="Lyric Fetcher (syncedlyrics)"
-                            status="online"
-                            description="Fetches synced lyrics from multiple providers"
-                        />
-                        <SystemComponent
-                            name="Audio Downloader (yt-dlp)"
-                            status="online"
-                            description="Downloads audio from YouTube, Spotify links"
-                        />
-                        <SystemComponent
-                            name="Metadata Service (iTunes)"
-                            status="online"
-                            description="Fetches album art and track info"
-                        />
-                        <SystemComponent
-                            name="FFmpeg Processor"
-                            status="online"
-                            description="Audio conversion and processing"
-                        />
-                    </div>
-                </section>
             </main>
         </>
     );
@@ -152,21 +126,5 @@ const TaskItem = ({ task }) => (
     </div>
 );
 
-const SystemComponent = ({ name, status, description }) => (
-    <div className="bg-slate-900/30 border border-white/5 rounded-lg p-3 flex items-center gap-3">
-        <div className={`w-2 h-2 rounded-full ${status === 'online' ? 'bg-green-500' : 'bg-red-500'
-            }`}></div>
-        <div className="flex-1">
-            <p className="text-white text-sm font-medium">{name}</p>
-            <p className="text-slate-500 text-xs">{description}</p>
-        </div>
-        <span className={`text-xs px-2 py-1 rounded ${status === 'online'
-            ? 'bg-green-500/10 text-green-400'
-            : 'bg-red-500/10 text-red-400'
-            }`}>
-            {status}
-        </span>
-    </div>
-);
 
 export default ActivityView;

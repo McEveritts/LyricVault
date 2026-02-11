@@ -1,24 +1,17 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import API_BASE from '../config/api';
 
-const LyricsOverlay = ({ song, isOpen, onClose }) => {
+const LyricsOverlay = ({ song, isOpen, onClose, currentTime }) => {
     const contentRef = useRef(null);
+    const scrollContainerRef = useRef(null);
+    const activeLineRef = useRef(null);
     const [isResearching, setIsResearching] = useState(false);
     const [currentLyrics, setCurrentLyrics] = useState(null);
-
-    const [visualizerBars, setVisualizerBars] = useState([]);
-
-    useEffect(() => {
-        setVisualizerBars(Array.from({ length: 20 }).map(() => ({ // eslint-disable-line react-hooks/set-state-in-effect
-            height: Math.random() * 40 + 10,
-            duration: Math.random() * 0.5 + 0.5
-        })));
-    }, []);
 
     useEffect(() => {
         if (isOpen) {
             document.body.style.overflow = 'hidden';
-            setCurrentLyrics(song?.lyrics); // eslint-disable-line react-hooks/set-state-in-effect
+            setCurrentLyrics(song?.lyrics);
         } else {
             document.body.style.overflow = 'unset';
             setIsResearching(false);
@@ -27,14 +20,6 @@ const LyricsOverlay = ({ song, isOpen, onClose }) => {
             document.body.style.overflow = 'unset';
         };
     }, [isOpen, song]);
-
-    if (!isOpen || !song) return null;
-
-    // Determine if we should show the research button
-    // Show if lyrics are missing, empty, or literally "Lyrics not found."
-    const showResearchButton = !currentLyrics ||
-        currentLyrics.length < 50 ||
-        currentLyrics === "Lyrics not found.";
 
     const handleResearch = async () => {
         setIsResearching(true);
@@ -52,7 +37,7 @@ const LyricsOverlay = ({ song, isOpen, onClose }) => {
             if (data.status === 'success') {
                 setCurrentLyrics(data.lyrics);
             } else {
-                alert(data.message || "AI could not find lyrics for this song. Try checking the title/artist metadata.");
+                alert(data.message || "AI could not find lyrics for this song.");
             }
         } catch (error) {
             console.error("Research failed:", error);
@@ -61,94 +46,150 @@ const LyricsOverlay = ({ song, isOpen, onClose }) => {
         setIsResearching(false);
     };
 
-    // Simple parsing for LRC lines if synced, else just raw text
-    const parseLyrics = (text) => {
-        if (!text || text === "Lyrics not found.") return ["Lyrics not found."];
-        // Basic check if it looks like LRC
-        if (text.includes('[')) {
-            return text.split('\n').map(line => line.replace(/\[.*?\]/g, '').trim()).filter(Boolean);
+    // Advanced LRC parsing
+    const parsedLyrics = useMemo(() => {
+        if (!currentLyrics || currentLyrics === "Lyrics not found.") return [];
+
+        const lines = currentLyrics.split('\n');
+        const lrcRegex = /\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)/;
+        const result = [];
+
+        lines.forEach(line => {
+            const match = line.match(lrcRegex);
+            if (match) {
+                const mins = parseInt(match[1]);
+                const secs = parseInt(match[2]);
+                const ms = parseInt(match[3]);
+                const time = mins * 60 + secs + ms / (match[3].length === 3 ? 1000 : 100);
+                const text = match[4].trim();
+                if (text) result.push({ time, text });
+            } else {
+                const text = line.replace(/\[.*?\]/g, '').trim();
+                if (text) result.push({ time: -1, text });
+            }
+        });
+
+        return result;
+    }, [currentLyrics]);
+
+    const activeIndex = useMemo(() => {
+        if (!currentTime || parsedLyrics.length === 0) return -1;
+
+        // Only consider lines with timestamps
+        const timedLines = parsedLyrics.filter(l => l.time >= 0);
+        if (timedLines.length === 0) return -1;
+
+        let index = -1;
+        for (let i = 0; i < timedLines.length; i++) {
+            if (currentTime >= timedLines[i].time) {
+                index = i;
+            } else {
+                break;
+            }
         }
-        return text.split('\n').filter(Boolean);
-    };
 
-    const lines = parseLyrics(currentLyrics);
+        // Map back to original index
+        if (index === -1) return -1;
+        const activeTime = timedLines[index].time;
+        return parsedLyrics.findIndex(l => l.time === activeTime);
+    }, [currentTime, parsedLyrics]);
 
+    // Auto-scroll logic
+    useEffect(() => {
+        if (activeIndex !== -1 && activeLineRef.current && scrollContainerRef.current) {
+            activeLineRef.current.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center'
+            });
+        }
+    }, [activeIndex]);
+
+    if (!isOpen || !song) return null;
+
+    const showResearchButton = !currentLyrics ||
+        currentLyrics.length < 50 ||
+        currentLyrics === "Lyrics not found.";
 
     return (
-        <div className="fixed inset-0 z-[100] bg-slate-950/95 backdrop-blur-3xl animate-in fade-in duration-300 flex flex-col">
+        <div className="fixed inset-0 z-[100] bg-[#050505]/95 backdrop-blur-3xl animate-in fade-in duration-500 flex flex-col">
             {/* Header */}
-            <div className="p-6 flex justify-between items-center bg-transparent relative z-20">
-                <div className="flex flex-col">
-                    <h2 className="text-2xl font-bold text-white">{song.title}</h2>
-                    <p className="text-slate-400 text-lg">{song.artist}</p>
+            <div className="p-8 flex justify-between items-start bg-transparent relative z-20 max-w-6xl mx-auto w-full">
+                <div className="flex gap-6 items-center">
+                    {song.cover_url && (
+                        <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-2xl border border-white/5">
+                            <img src={song.cover_url} alt="" className="w-full h-full object-cover" />
+                        </div>
+                    )}
+                    <div className="flex flex-col">
+                        <h2 className="text-3xl font-bold text-white tracking-tight">{song.title}</h2>
+                        <p className="text-google-gold/80 text-xl font-medium">{song.artist}</p>
+                    </div>
                 </div>
                 <button
                     onClick={onClose}
-                    className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors text-white"
+                    className="w-12 h-12 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-all text-white active:scale-95 group"
                 >
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6 group-hover:rotate-90 transition-transform">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                 </button>
             </div>
 
-            {/* Content centered */}
-            <div ref={contentRef} className="flex-1 overflow-y-auto w-full max-w-2xl mx-auto px-6 py-12 text-center remove-scrollbar scroll-smooth flex flex-col items-center">
-                {lines.map((line, i) => (
-                    <p
-                        key={i}
-                        className="text-2xl md:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-br from-white to-slate-400 mb-8 leading-relaxed hover:text-purple-400 transition-colors cursor-default"
-                    >
-                        {line}
-                    </p>
-                ))}
+            {/* Lyrics Container */}
+            <div
+                ref={scrollContainerRef}
+                className="flex-1 overflow-y-auto w-full max-w-4xl mx-auto px-8 py-20 remove-scrollbar flex flex-col items-start gap-12"
+            >
+                {parsedLyrics.length > 0 ? (
+                    parsedLyrics.map((line, i) => {
+                        const isActive = i === activeIndex;
+                        const isPast = activeIndex !== -1 && i < activeIndex;
 
-                {showResearchButton && (
-                    <div className="mt-8 mb-12">
-                        <button
-                            onClick={handleResearch}
-                            disabled={isResearching}
-                            className="flex items-center gap-3 px-6 py-3 bg-purple-600 hover:bg-purple-500 disabled:bg-purple-800 disabled:cursor-not-allowed rounded-full text-white font-medium transition-all shadow-lg shadow-purple-500/20"
-                        >
-                            {isResearching ? (
-                                <>
-                                    <svg className="animate-spin -ml-1 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
-                                    Researching with Gemini AI...
-                                </>
-                            ) : (
-                                <>
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                                        <path d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zm.5 14.25h-1v-4.5h1v4.5zm0-6h-1v-1h1v1z" />
-                                        <path fillRule="evenodd" d="M9.315 7.584c.15-.353.376-.665.654-.925A4.47 4.47 0 0112 5.25a4.47 4.47 0 014.249 3.013.75.75 0 01-1.396.543 2.97 2.97 0 00-5.75-.411.75.75 0 01-1.396-.543z" clipRule="evenodd" />
-                                    </svg>
-                                    Research Lyrics with AI
-                                </>
-                            )}
-                        </button>
-                        <p className="mt-4 text-slate-500 text-sm max-w-sm mx-auto">
-                            Uses Google Gemini to research the web or Transcribe the audio directly.
-                        </p>
+                        return (
+                            <p
+                                key={i}
+                                ref={isActive ? activeLineRef : null}
+                                className={`text-3xl md:text-5xl font-bold transition-all duration-700 leading-tight tracking-tight text-left max-w-3xl cursor-default
+                                    ${isActive
+                                        ? 'text-white scale-105 origin-left'
+                                        : isPast
+                                            ? 'text-white/20'
+                                            : 'text-white/40 hover:text-white/60'
+                                    }`}
+                            >
+                                {line.text}
+                            </p>
+                        );
+                    })
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center text-white/20 text-2xl font-medium">
+                        {showResearchButton ? "No lyrics found." : "Loading lyrics..."}
                     </div>
                 )}
 
-                <div className="h-32"></div> {/* Bottom spacers */}
-            </div>
+                {showResearchButton && (
+                    <div className="mt-12 mb-20 self-center text-center">
+                        <button
+                            onClick={handleResearch}
+                            disabled={isResearching}
+                            className="flex items-center gap-3 px-8 py-4 bg-google-gold hover:bg-google-gold-light disabled:opacity-50 disabled:cursor-not-allowed rounded-full text-black font-bold transition-all shadow-xl shadow-google-gold/10 active:scale-95"
+                        >
+                            {isResearching ? (
+                                <>
+                                    <svg className="animate-spin h-5 w-5 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Researching...
+                                </>
+                            ) : (
+                                "Research Lyrics with AI"
+                            )}
+                        </button>
+                    </div>
+                )}
 
-            {/* Simple visualizer bars bottom */}
-            <div className="h-2 w-full flex items-end justify-center gap-1 pb-1 opacity-20">
-                {visualizerBars.map((bar, i) => (
-                    <div
-                        key={i}
-                        className="w-2 bg-white rounded-t-full animate-bounce"
-                        style={{
-                            height: `${bar.height}px`,
-                            animationDuration: `${bar.duration}s`
-                        }}
-                    ></div>
-                ))}
+                <div className="h-[40vh] w-full flex-shrink-0"></div> {/* Bottom spacer for scroll logic */}
             </div>
         </div>
     );

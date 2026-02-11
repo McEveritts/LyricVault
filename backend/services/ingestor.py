@@ -228,7 +228,7 @@ class IngestionService:
                     "artist": artist,
                     "duration": info.get('duration'),
                     "file_path": os.path.abspath(final_filename),
-                    "cover_url": itunes_meta.get('cover_url') if isinstance(itunes_meta, dict) else None,
+                    "cover_url": itunes_meta.get('cover_url') if (isinstance(itunes_meta, dict) and itunes_meta.get('cover_url')) else info.get('thumbnail'),
                     "album": itunes_meta.get('album') if isinstance(itunes_meta, dict) else None
                 }
         except Exception as e:

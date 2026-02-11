@@ -4,6 +4,7 @@ import sys
 import json
 import time
 import hashlib
+from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from logging.handlers import RotatingFileHandler
 from urllib.parse import quote, urlparse, urlunparse
@@ -31,6 +32,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 import uvicorn
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -55,7 +57,7 @@ async def lifespan(app: FastAPI):
         worker.stop()
 
 
-app = FastAPI(title="LyricVault API", version="0.3.0", lifespan=lifespan)
+app = FastAPI(title="LyricVault API", version="0.3.1", lifespan=lifespan)
 
 # Mount downloads directory
 os.makedirs(DOWNLOADS_DIR, exist_ok=True)
@@ -77,13 +79,17 @@ app.add_middleware(
 
 class IngestRequest(BaseModel):
     url: str
+    rehydrate: bool = False
+    song_id: int | None = None
 
 class SongResponse(BaseModel):
     id: int
     title: str
     artist: str
+    status: str
     lyrics_status: str
     stream_url: str
+    source_url: str | None = None
     cover_url: str | None = None
     duration: int | None = None
 
@@ -175,6 +181,107 @@ def _lyrics_status(song: models.Song, processing_song_ids: set[int]) -> str:
         return "processing"
     return "unavailable"
 
+
+def _active_ingest_urls(db: Session) -> set[str]:
+    urls: set[str] = set()
+    jobs = db.query(models.Job).filter(
+        models.Job.type == "ingest_audio",
+        models.Job.status.in_(["pending", "processing"])
+    ).all()
+
+    for job in jobs:
+        try:
+            payload = json.loads(job.payload or "{}")
+            raw_url = payload.get("url")
+            if isinstance(raw_url, str) and raw_url.strip():
+                urls.add(normalize_url(raw_url))
+        except Exception:
+            continue
+    return urls
+
+
+def _normalize_song_source(song: models.Song) -> str | None:
+    if not song.source_url:
+        return None
+    return normalize_url(song.source_url)
+
+
+def _invalidate_missing_file_path(song: models.Song) -> bool:
+    if song.file_path and not os.path.exists(song.file_path):
+        song.file_path = None
+        return True
+    return False
+
+
+def _audio_status(song: models.Song, active_ingest_urls: set[str]) -> str:
+    if song.file_path and os.path.exists(song.file_path):
+        return "cached"
+    normalized_source = _normalize_song_source(song)
+    if normalized_source and normalized_source in active_ingest_urls:
+        return "re-downloading"
+    return "expired"
+
+
+def _enqueue_ingest_job(
+    db: Session,
+    *,
+    url: str,
+    title: str,
+    song_id: int | None = None,
+    allow_requeue: bool = False,
+) -> models.Job:
+    normalized = normalize_url(url)
+    url_hash = hashlib.md5(normalized.encode()).hexdigest()
+    idempotency_key = f"ingest_{url_hash}"
+
+    existing_job = db.query(models.Job).filter(models.Job.idempotency_key == idempotency_key).first()
+    payload: dict[str, object] = {"url": url}
+    if song_id is not None:
+        payload["song_id"] = song_id
+
+    if existing_job:
+        if existing_job.status in ("pending", "processing"):
+            return existing_job
+        if not allow_requeue:
+            return existing_job
+
+        now = datetime.now(timezone.utc)
+        existing_job.type = "ingest_audio"
+        existing_job.title = title
+        existing_job.status = "pending"
+        existing_job.payload = json.dumps(payload)
+        existing_job.result_json = None
+        existing_job.progress = 0
+        existing_job.retry_count = 0
+        existing_job.last_error = None
+        existing_job.worker_id = None
+        existing_job.leased_until = None
+        existing_job.available_at = now
+        existing_job.started_at = None
+        existing_job.completed_at = None
+        db.commit()
+        db.refresh(existing_job)
+        return existing_job
+
+    job = models.Job(
+        type="ingest_audio",
+        title=title,
+        status="pending",
+        idempotency_key=idempotency_key,
+        payload=json.dumps(payload)
+    )
+    db.add(job)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        existing_job = db.query(models.Job).filter(models.Job.idempotency_key == idempotency_key).first()
+        if existing_job:
+            return existing_job
+        raise
+    db.refresh(job)
+    return job
+
 @app.post("/ingest", response_model=JobResponse, status_code=202)
 async def ingest_song(request: IngestRequest, db: Session = Depends(get_db)):
     try:
@@ -184,31 +291,13 @@ async def ingest_song(request: IngestRequest, db: Session = Depends(get_db)):
         if not ingestor.parse_url(url):
             raise HTTPException(status_code=400, detail="Unsupported platform")
 
-        norm_url = normalize_url(url)
-        url_hash = hashlib.md5(norm_url.encode()).hexdigest()
-        idempotency_key = f"ingest_{url_hash}"
-        
-        # Check for existing job (idempotency)
-        existing_job = db.query(models.Job).filter(models.Job.idempotency_key == idempotency_key).first()
-        if existing_job:
-            return existing_job
-
-        # Create new ingest job
-        job = models.Job(
-            type="ingest_audio",
+        job = _enqueue_ingest_job(
+            db,
+            url=url,
             title=f"Ingesting: {url[:50]}...",
-            status="pending",
-            idempotency_key=idempotency_key,
-            payload=json.dumps({"url": url})
+            song_id=request.song_id,
+            allow_requeue=request.rehydrate
         )
-        db.add(job)
-        try:
-            db.commit()
-        except Exception:
-            db.rollback()
-            return db.query(models.Job).filter(models.Job.idempotency_key == idempotency_key).first()
-            
-        db.refresh(job)
         return job
     except HTTPException:
         raise
@@ -321,17 +410,29 @@ async def retry_lyrics(song_id: int, db: Session = Depends(get_db)):
 def get_library(db: Session = Depends(get_db)):
     songs = db.query(models.Song).order_by(models.Song.id.desc()).all()
     processing_song_ids = _active_lyrics_song_ids(db)
+    active_ingest_urls = _active_ingest_urls(db)
+
+    changed = False
+    for song in songs:
+        if _invalidate_missing_file_path(song):
+            changed = True
+    if changed:
+        db.commit()
+
     response = []
     for song in songs:
-        filename = os.path.basename(song.file_path) if song.file_path else ""
+        status = _audio_status(song, active_ingest_urls)
+        filename = os.path.basename(song.file_path) if status == "cached" and song.file_path else ""
         stream_url = f"http://localhost:8000/stream/{quote(filename)}" if filename else ""
         
         response.append({
             "id": song.id,
             "title": song.title,
             "artist": song.artist.name if song.artist else "Unknown",
+            "status": status,
             "lyrics_status": _lyrics_status(song, processing_song_ids),
             "stream_url": stream_url,
+            "source_url": song.source_url,
             "cover_url": song.cover_url,
             "duration": _duration_seconds(song.duration)
         })
@@ -342,20 +443,42 @@ def get_song(song_id: int, db: Session = Depends(get_db)):
     song = db.get(models.Song, song_id)
     if not song:
         raise HTTPException(status_code=404, detail="Song not found")
-    
-    filename = os.path.basename(song.file_path) if song.file_path else ""
+
+    if _invalidate_missing_file_path(song):
+        db.commit()
+        db.refresh(song)
+
+    active_ingest_urls = _active_ingest_urls(db)
+    status = _audio_status(song, active_ingest_urls)
+
+    if status == "expired" and song.source_url and ingestor.parse_url(song.source_url):
+        try:
+            _enqueue_ingest_job(
+                db,
+                url=song.source_url,
+                title=f"Rehydrating: {song.title}",
+                song_id=song.id,
+                allow_requeue=True
+            )
+            status = "re-downloading"
+        except Exception as e:
+            logger.error(f"Failed to enqueue rehydration for song {song.id}: {e}", exc_info=True)
+
+    filename = os.path.basename(song.file_path) if status == "cached" and song.file_path else ""
     stream_url = f"http://localhost:8000/stream/{quote(filename)}" if filename else ""
     processing_song_ids = _active_lyrics_song_ids(db)
-    
+
     return {
         "id": song.id,
         "title": song.title,
         "artist": song.artist.name if song.artist else "Unknown",
+        "status": status,
         "lyrics_status": _lyrics_status(song, processing_song_ids),
         "lyrics": song.lyrics,
         "lyrics_synced": song.lyrics_synced,
         "file_path": song.file_path,
         "stream_url": stream_url,
+        "source_url": song.source_url,
         "cover_url": song.cover_url,
         "duration": _duration_seconds(song.duration)
     }
@@ -420,7 +543,7 @@ def set_model(request: ModelRequest):
 
 @app.get("/")
 def read_root():
-    return {"message": "LyricVault Backend v0.3.0 is running"}
+    return {"message": "LyricVault Backend v0.3.1 is running"}
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
