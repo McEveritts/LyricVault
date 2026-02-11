@@ -377,7 +377,9 @@ def save_gemini_key(request: ApiKeyRequest):
     # Validate the key
     is_valid = gemini_service.validate_key(key)
     if not is_valid:
-        raise HTTPException(status_code=400, detail="Invalid API key. Please check and try again.")
+        error_detail = getattr(gemini_service, '_last_validation_error', None)
+        detail_msg = f"Invalid API key: {error_detail}" if error_detail else "Invalid API key. Please check and try again."
+        raise HTTPException(status_code=400, detail=detail_msg)
     
     # Save and reload
     settings_service.set_gemini_api_key(key)
@@ -395,7 +397,9 @@ def test_gemini_key(request: ApiKeyRequest):
     if is_valid:
         return {"status": "valid", "message": "API key is valid!"}
     else:
-        raise HTTPException(status_code=400, detail="Invalid API key. Please check and try again.")
+        error_detail = getattr(gemini_service, '_last_validation_error', None)
+        detail_msg = f"Invalid API key: {error_detail}" if error_detail else "Invalid API key. Please check and try again."
+        raise HTTPException(status_code=400, detail=detail_msg)
 
 @app.delete("/settings/gemini-key")
 def delete_gemini_key():

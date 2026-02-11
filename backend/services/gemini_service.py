@@ -86,6 +86,7 @@ class GeminiService:
     def __init__(self):
         self.client = None
         self._current_key = None
+        self._last_validation_error = None
         self._initialize()
 
     @property
@@ -134,7 +135,10 @@ class GeminiService:
             )
             return response.text is not None
         except Exception as e:
-            print(f"Gemini key validation failed: {e}")
+            error_msg = str(e)
+            print(f"Gemini key validation failed: {error_msg}")
+            # Store last validation error for better user feedback
+            self._last_validation_error = error_msg
             return False
 
     def _call_with_retry(self, call_fn):
