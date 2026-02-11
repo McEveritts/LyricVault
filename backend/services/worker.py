@@ -1,6 +1,5 @@
 import logging
 import threading
-import time
 import json
 import socket
 import os
@@ -32,6 +31,7 @@ class Worker:
         self._stop_event = threading.Event()
         self._thread = None
         self.lease_duration = timedelta(minutes=5)
+        self.heartbeat_interval_seconds = 60
 
     def start(self):
         if self._thread and self._thread.is_alive():
@@ -55,10 +55,49 @@ class Worker:
             try:
                 job_processed = self._process_one_job()
                 if not job_processed:
-                    time.sleep(2) # Back off if no work
+                    self._stop_event.wait(2)  # Back off if no work
             except Exception as e:
                 logger.error(f"Worker loop error: {e}")
-                time.sleep(5)
+                self._stop_event.wait(5)
+
+    def _heartbeat(self, job_id: int) -> bool:
+        """Extend a claimed job lease while it is actively being processed."""
+        db = SessionLocal()
+        try:
+            now = datetime.now(timezone.utc)
+            lease_end = now + self.lease_duration
+            stmt = text("""
+                UPDATE jobs
+                SET leased_until = :lease_end,
+                    updated_at = :now
+                WHERE id = :job_id
+                  AND status = 'processing'
+                  AND worker_id = :worker_id
+                RETURNING id
+            """)
+            row = db.execute(stmt, {
+                "lease_end": lease_end,
+                "now": now,
+                "job_id": job_id,
+                "worker_id": self.worker_id,
+            }).first()
+            db.commit()
+            return row is not None
+        finally:
+            db.close()
+
+    def _heartbeat_loop(self, job_id: int, stop_event: threading.Event):
+        while not stop_event.wait(self.heartbeat_interval_seconds):
+            if self._stop_event.is_set():
+                break
+            try:
+                renewed = self._heartbeat(job_id)
+            except Exception as e:
+                logger.warning(f"Heartbeat update failed for job {job_id}: {e}")
+                continue
+            if not renewed:
+                logger.warning(f"Heartbeat stopped for job {job_id}; lease is no longer owned by {self.worker_id}.")
+                break
 
     def _requeue_stale_jobs(self):
         db = SessionLocal()
@@ -122,7 +161,16 @@ class Worker:
                 return False
 
             logger.info(f"[{self.worker_id}] Claimed job {job.id} ({job.type}) - {job.title or 'No Title'}")
-            
+
+            heartbeat_stop = threading.Event()
+            heartbeat_thread = threading.Thread(
+                target=self._heartbeat_loop,
+                args=(job.id, heartbeat_stop),
+                daemon=True,
+                name=f"JobHeartbeat-{job.id}",
+            )
+            heartbeat_thread.start()
+
             try:
                 payload = json.loads(job.payload)
                 
@@ -148,7 +196,9 @@ class Worker:
                     delay = 30 * (4 ** (job.retry_count - 1))
                     job.available_at = datetime.now(timezone.utc) + timedelta(seconds=delay)
                     job.status = "pending"
-            
+            finally:
+                heartbeat_stop.set()
+                heartbeat_thread.join(timeout=2)
             job.worker_id = None
             job.leased_until = None
             db.commit()

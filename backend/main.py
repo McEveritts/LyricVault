@@ -9,21 +9,25 @@ from logging.handlers import RotatingFileHandler
 from urllib.parse import quote, urlparse, urlunparse
 
 # Add current directory to sys.path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+LOG_DIR = os.path.join(BASE_DIR, "logs")
+DOWNLOADS_DIR = os.path.join(BASE_DIR, "downloads")
+sys.path.append(BASE_DIR)
 
 # Configure Logging
-os.makedirs("logs", exist_ok=True)
+os.makedirs(LOG_DIR, exist_ok=True)
 logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[
-        RotatingFileHandler("logs/backend.log", maxBytes=10*1024*1024, backupCount=5),
+        RotatingFileHandler(os.path.join(LOG_DIR, "backend.log"), maxBytes=10*1024*1024, backupCount=5),
         logging.StreamHandler()
     ]
 )
 logger = logging.getLogger(__name__)
 
 from fastapi import FastAPI, Depends, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -54,8 +58,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="LyricVault API", version="0.3.0", lifespan=lifespan)
 
 # Mount downloads directory
-os.makedirs("downloads", exist_ok=True)
-app.mount("/stream", StaticFiles(directory="downloads"), name="stream")
+os.makedirs(DOWNLOADS_DIR, exist_ok=True)
+app.mount("/stream", StaticFiles(directory=DOWNLOADS_DIR), name="stream")
 
 # CORS Setup
 app.add_middleware(
@@ -233,16 +237,34 @@ async def research_lyrics_manual(song_id: int, request: ResearchRequest, db: Ses
     if request.mode == "transcribe":
         if not song.file_path or not os.path.exists(song.file_path):
             return {"status": "failed", "message": "Audio file not found for transcription."}
-        lyrics = lyricist._try_gemini_transcription(
-            song.file_path, song.title, artist_name, model_id=request.model_id
+        lyrics = await run_in_threadpool(
+            lyricist._try_gemini_transcription,
+            song.file_path,
+            song.title,
+            artist_name,
+            model_id=request.model_id,
         )
     elif request.mode == "research":
-        lyrics = lyricist._try_gemini_research(song.title, artist_name, model_id=request.model_id)
+        lyrics = await run_in_threadpool(
+            lyricist._try_gemini_research,
+            song.title,
+            artist_name,
+            model_id=request.model_id,
+        )
     else:
-        lyrics = lyricist._try_gemini_research(song.title, artist_name, model_id=request.model_id)
+        lyrics = await run_in_threadpool(
+            lyricist._try_gemini_research,
+            song.title,
+            artist_name,
+            model_id=request.model_id,
+        )
         if not lyrics and song.file_path and os.path.exists(song.file_path):
-            lyrics = lyricist._try_gemini_transcription(
-                song.file_path, song.title, artist_name, model_id=request.model_id
+            lyrics = await run_in_threadpool(
+                lyricist._try_gemini_transcription,
+                song.file_path,
+                song.title,
+                artist_name,
+                model_id=request.model_id,
             )
 
     if lyrics:
