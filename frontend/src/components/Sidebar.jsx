@@ -1,4 +1,5 @@
 import React from 'react';
+import logo from '../assets/logo.svg';
 
 const Sidebar = ({ activeTab, onTabChange }) => {
     return (
@@ -9,7 +10,7 @@ const Sidebar = ({ activeTab, onTabChange }) => {
                     {/* Subtle Gold Rotation Effect */}
                     <div className="absolute inset-0 bg-google-gold/20 rounded-xl rotate-6 group-hover:rotate-12 transition-transform duration-500 blur-sm"></div>
                     <div className="relative w-full h-full bg-google-surface-high border border-white/10 rounded-xl flex items-center justify-center overflow-hidden shadow-lg p-2">
-                        <img src="/logo.svg" alt="LyricVault Logo" className="w-full h-full object-contain" />
+                        <img src={logo} alt="LyricVault Logo" className="w-full h-full object-contain" />
                     </div>
                 </div>
                 <div>

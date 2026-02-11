@@ -37,25 +37,9 @@ const DiscoveryView = ({ onIngest }) => {
                         <p className="text-google-text-secondary text-sm mt-1">Search and ingest from across the web</p>
                     </div>
 
-                    <form onSubmit={handleSearch} className="flex-1 max-w-2xl flex items-center bg-google-surface rounded-full border border-google-surface-high shadow-lg focus-within:ring-2 focus-within:ring-google-gold transition-all relative">
+                    <form onSubmit={handleSearch} className="flex-1 max-w-2xl flex items-center bg-google-surface rounded-full border border-google-surface-high shadow-xl focus-within:ring-2 focus-within:ring-google-gold transition-all relative z-40">
                         <div className="relative group">
-                            <select
-                                value={platform}
-                                onChange={(e) => setPlatform(e.target.value)}
-                                className="appearance-none bg-transparent text-google-text-secondary text-[10px] font-bold uppercase tracking-widest pl-8 pr-12 focus:outline-none border-r border-white/5 h-12 cursor-pointer hover:text-google-text transition-colors z-10 relative"
-                            >
-                                <option value="youtube">YouTube</option>
-                                <option value="spotify">Spotify</option>
-                                <option value="soundcloud">SoundCloud</option>
-                            </select>
-                            <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-xs">
-                                {platform === 'youtube' ? '🔴' : platform === 'spotify' ? '🟢' : '🟠'}
-                            </div>
-                            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-google-text-secondary group-hover:text-google-text transition-colors">
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
-                            </div>
+                            <PlatformSelector selected={platform} onChange={setPlatform} />
                         </div>
                         <input
                             type="text"
@@ -192,6 +176,59 @@ const SearchResultItem = ({ result, onIngest }) => {
                     )}
                 </button>
             </div>
+        </div>
+    );
+};
+
+const PlatformSelector = ({ selected, onChange }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const platforms = [
+        { id: 'youtube', label: 'YouTube', icon: '🔴', color: 'text-google-gold' },
+        { id: 'spotify', label: 'Spotify', icon: '🟢', color: 'text-[#1DB954]' },
+        { id: 'soundcloud', label: 'SoundCloud', icon: '🟠', color: 'text-[#FF5500]' },
+    ];
+
+    const current = platforms.find(p => p.id === selected) || platforms[0];
+
+    return (
+        <div className="relative">
+            <button
+                type="button"
+                onClick={() => setIsOpen(!isOpen)}
+                onBlur={() => setTimeout(() => setIsOpen(false), 200)}
+                className="flex items-center gap-3 pl-8 pr-10 h-12 border-r border-white/5 bg-transparent hover:bg-white/5 transition-colors group"
+            >
+                <span className="text-sm">{current.icon}</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-google-text-secondary group-hover:text-google-text transition-colors">
+                    {current.label}
+                </span>
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-google-text-secondary group-hover:text-google-text transition-transform duration-300" style={{ transform: `translateY(-50%) rotate(${isOpen ? '180deg' : '0deg'})` }}>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                </div>
+            </button>
+
+            {isOpen && (
+                <div className="absolute top-full left-0 mt-2 w-48 bg-google-surface-high/90 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl py-2 z-50 animate-in fade-in zoom-in-95 duration-200">
+                    {platforms.map((p) => (
+                        <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => {
+                                onChange(p.id);
+                                setIsOpen(false);
+                            }}
+                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5 ${selected === p.id ? 'bg-google-gold/10' : ''}`}
+                        >
+                            <span className="text-sm">{p.icon}</span>
+                            <span className={`text-[10px] font-bold uppercase tracking-widest ${selected === p.id ? 'text-google-gold' : 'text-google-text-secondary hover:text-google-text'}`}>
+                                {p.label}
+                            </span>
+                        </button>
+                    ))}
+                </div>
+            )}
         </div>
     );
 };
