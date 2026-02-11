@@ -1,0 +1,308 @@
+import logging
+import os
+import sys
+from logging.handlers import RotatingFileHandler
+
+# Add current directory to sys.path to ensure local modules can be imported
+# This is required for the embedded python environment which may not auto-add script dir
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+# Configure Logging
+os.makedirs("logs", exist_ok=True)
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[
+        RotatingFileHandler("logs/backend.log", maxBytes=10*1024*1024, backupCount=5),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
+from urllib.parse import quote
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
+import uvicorn
+from pydantic import BaseModel
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+from database.database import init_db, get_db
+from database import models
+from services.ingestor import ingestor
+from services.lyricist import lyricist
+from services.gemini_service import gemini_service
+from services import settings_service
+
+app = FastAPI(title="LyricVault API", version="0.1.1")
+
+# Mount downloads directory to serve audio files
+# Ensure directory exists
+os.makedirs("downloads", exist_ok=True)
+app.mount("/stream", StaticFiles(directory="downloads"), name="stream")
+
+# CORS Setup
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], 
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+class IngestRequest(BaseModel):
+    url: str
+
+class SongResponse(BaseModel):
+    id: int
+    title: str
+    artist: str
+    lyrics_status: str
+    stream_url: str
+    cover_url: str | None = None
+
+class ApiKeyRequest(BaseModel):
+    api_key: str
+
+class ModelRequest(BaseModel):
+    model_id: str
+
+@app.on_event("startup")
+def on_startup():
+    init_db()
+    
+@app.post("/ingest", response_model=SongResponse)
+async def ingest_song(request: IngestRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    # 1. Parse URL & Identify Platform
+    platform = ingestor.parse_url(request.url)
+    if not platform:
+         raise HTTPException(status_code=400, detail="Unsupported platform")
+         
+    # 2. Download Audio
+    try:
+        metadata = ingestor.download_audio(request.url)
+    except HTTPException:
+        raise  # Already a proper HTTP error — don't re-wrap
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Download failed: {str(e)}")
+        
+    # check if artist exists
+    artist = db.query(models.Artist).filter(models.Artist.name == metadata['artist']).first()
+    if not artist:
+        artist = models.Artist(name=metadata['artist'])
+        db.add(artist)
+        db.commit()
+        db.refresh(artist)
+        
+    # check if song exists
+    song = db.query(models.Song).filter(models.Song.file_path == metadata['file_path']).first()
+    if not song:
+        song = models.Song(
+            title=metadata['title'],
+            artist_id=artist.id,
+            file_path=metadata['file_path'],
+            duration=metadata['duration'],
+            source_url=request.url,
+            lyrics_synced=False,
+            cover_url=metadata.get('cover_url')
+        )
+        db.add(song)
+        db.commit()
+        db.refresh(song)
+
+
+    # 3. Fetch Lyrics (Background Task)
+    # Pass metadata for search, including file_path for audio transcription fallback
+    background_tasks.add_task(process_lyrics, song.id, metadata['title'], metadata['artist'], metadata['file_path'])
+    
+    # Construct stream URL
+    filename = os.path.basename(metadata['file_path'])
+    stream_url = f"http://localhost:8000/stream/{quote(filename)}"
+
+    return {
+        "id": song.id,
+        "title": song.title,
+        "artist": artist.name,
+        "lyrics_status": "processing",
+        "stream_url": stream_url
+    }
+
+def process_lyrics(song_id: int, title: str, artist: str, file_path: str = None):
+    """Background task to fetch lyrics using multi-source approach"""
+    db_gen = get_db()
+    db = next(db_gen)
+    try:
+        # Pass file_path to enable audio transcription fallback
+        lyrics = lyricist.transcribe(title, artist, file_path)
+        song = db.get(models.Song, song_id)
+        if song:
+            if lyrics:
+                song.lyrics = lyrics
+                song.lyrics_synced = True
+                print(f"Lyrics found for {title}")
+            else:
+                song.lyrics = "Lyrics not found."
+            db.commit()
+    except Exception as e:
+        print(f"Error processing lyrics: {e}")
+    finally:
+        try:
+            next(db_gen)
+        except StopIteration:
+            pass
+
+@app.post("/retry_lyrics/{song_id}")
+async def retry_lyrics(song_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    song = db.get(models.Song, song_id)
+    if not song:
+        raise HTTPException(status_code=404, detail="Song not found")
+    
+    # Reset status
+    song.lyrics = None
+    song.lyrics_synced = False
+    db.commit()
+    
+    background_tasks.add_task(process_lyrics, song.id, song.title, song.artist.name)
+    return {"status": "retrying", "song": song.title}
+
+@app.post("/research_lyrics/{song_id}")
+async def research_lyrics_manual(song_id: int, db: Session = Depends(get_db)):
+    """Manually trigger Gemini AI research for a song"""
+    song = db.get(models.Song, song_id)
+    if not song:
+        raise HTTPException(status_code=404, detail="Song not found")
+    
+    # 1. Try Gemini Research directly first (skip syncedlyrics if user is manually researching)
+    print(f"Manual research triggered for: {song.title}")
+    
+    # Try Research
+    lyrics = lyricist._try_gemini_research(song.title, song.artist.name)
+    
+    # If research failed, try transcription if audio exists
+    if not lyrics and song.file_path and os.path.exists(song.file_path):
+         lyrics = lyricist._try_gemini_transcription(song.file_path, song.title, song.artist.name)
+    
+    if lyrics:
+        song.lyrics = lyrics
+        song.lyrics_synced = False  # AI lyrics usually aren't time-synced
+        db.commit()
+        return {"status": "success", "lyrics": lyrics}
+    else:
+        return {"status": "failed", "message": "AI could not find or transcribe lyrics."}
+
+@app.get("/library", response_model=list[SongResponse])
+def get_library(db: Session = Depends(get_db)):
+    songs = db.query(models.Song).all()
+    response = []
+    for song in songs:
+        filename = os.path.basename(song.file_path) if song.file_path else ""
+        stream_url = f"http://localhost:8000/stream/{quote(filename)}" if filename else ""
+        
+        response.append({
+            "id": song.id,
+            "title": song.title,
+            "artist": song.artist.name if song.artist else "Unknown",
+            "lyrics_status": "ready" if song.lyrics else "unavailable", # Simple status mapping
+            "stream_url": stream_url,
+            "cover_url": song.cover_url
+        })
+    return response
+
+@app.get("/song/{song_id}")
+def get_song(song_id: int, db: Session = Depends(get_db)):
+    """Get full song details including lyrics"""
+    song = db.get(models.Song, song_id)
+    if not song:
+        raise HTTPException(status_code=404, detail="Song not found")
+    
+    filename = os.path.basename(song.file_path) if song.file_path else ""
+    stream_url = f"http://localhost:8000/stream/{quote(filename)}" if filename else ""
+    
+    return {
+        "id": song.id,
+        "title": song.title,
+        "artist": song.artist.name if song.artist else "Unknown",
+        "lyrics": song.lyrics,
+        "lyrics_synced": song.lyrics_synced,
+        "stream_url": stream_url,
+        "cover_url": song.cover_url,
+        "duration": song.duration
+    }
+
+# In-memory task tracking (for demo purposes)
+active_tasks = {}
+
+class TaskStatus(BaseModel):
+    id: str
+    type: str
+    title: str
+    status: str
+    progress: int = 0
+
+@app.get("/tasks")
+def get_tasks():
+    """Return current active/recent tasks"""
+    return list(active_tasks.values())
+
+# ── Settings Endpoints ────────────────────────────────────────────────
+
+@app.get("/settings/gemini-key")
+def get_gemini_key_status():
+    """Check if a Gemini API key is configured and working."""
+    key = settings_service.get_gemini_api_key()
+    if key:
+        # Mask the key for display
+        masked = key[:4] + "*" * (len(key) - 8) + key[-4:] if len(key) > 8 else "****"
+        return {"configured": True, "masked_key": masked, "available": gemini_service.is_available()}
+    return {"configured": False, "masked_key": None, "available": False}
+
+@app.post("/settings/gemini-key")
+def save_gemini_key(request: ApiKeyRequest):
+    """Validate and save a Gemini API key."""
+    key = request.api_key.strip()
+    if not key:
+        raise HTTPException(status_code=400, detail="API key cannot be empty")
+    
+    # Validate the key
+    is_valid = gemini_service.validate_key(key)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail="Invalid API key. Please check and try again.")
+    
+    # Save and reload
+    settings_service.set_gemini_api_key(key)
+    gemini_service.reload()
+    return {"status": "saved", "message": "Gemini API key saved and activated."}
+
+@app.delete("/settings/gemini-key")
+def delete_gemini_key():
+    """Remove the stored Gemini API key."""
+    settings_service.delete_gemini_api_key()
+    gemini_service.reload()
+    return {"status": "deleted", "message": "Gemini API key removed."}
+
+@app.get("/settings/models")
+def get_models():
+    """Return available Gemini models with rate limit info."""
+    models = settings_service.get_available_models()
+    current = settings_service.get_gemini_model()
+    return {"models": models, "selected": current}
+
+@app.post("/settings/models")
+def set_model(request: ModelRequest):
+    """Set the preferred Gemini model."""
+    try:
+        settings_service.set_gemini_model(request.model_id)
+        return {"status": "saved", "model": request.model_id}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/")
+def read_root():
+    return {"message": "LyricVault Backend is running"}
+
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

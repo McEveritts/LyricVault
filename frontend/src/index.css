@@ -1,0 +1,103 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-google-bg: #131314;
+  --color-google-surface: #1E1F20;
+  --color-google-surface-high: #2B2D31;
+  --color-google-surface-highest: #36393E;
+  --color-google-gold: #E2C286;
+  --color-google-gold-dark: #C4A468;
+  --color-google-gold-light: #F4E0B8;
+  --color-google-text: #E3E3E3;
+  --color-google-text-secondary: #C4C7C5;
+
+  --font-sans: 'Roboto', sans-serif;
+
+  --radius-xl: 1.5rem;
+  --radius-2xl: 2rem;
+  --radius-pill: 9999px;
+
+  --animate-float: float 8s ease-in-out infinite;
+  --animate-pulse-slow: pulse-slow 4s ease-in-out infinite;
+
+  --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+@layer base {
+  body {
+    background-color: var(--color-google-bg);
+    color: var(--color-google-text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Subtle Pixel Pro texture - smooth gradients */
+    background-image:
+      radial-gradient(circle at 15% 50%, rgba(226, 194, 134, 0.03) 0%, transparent 50%),
+      radial-gradient(circle at 85% 30%, rgba(255, 255, 255, 0.02) 0%, transparent 50%);
+    background-attachment: fixed;
+  }
+
+  /* Custom Scrollbar for that premium feel */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-google-surface-highest);
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-google-text-secondary);
+  }
+}
+
+@layer utilities {
+  .glass-panel {
+    @apply bg-google-surface/60 backdrop-blur-xl border border-white/5 shadow-glass;
+  }
+
+  .material-btn {
+    @apply rounded-pill px-6 py-3 font-medium transition-all duration-300 active:scale-95;
+  }
+
+  .material-card {
+    @apply rounded-xl bg-google-surface border border-white/5 p-6;
+  }
+
+  .text-glow {
+    text-shadow: 0 0 20px rgba(226, 194, 134, 0.15);
+  }
+
+  @keyframes float {
+
+    0%,
+    100% {
+      transform: translateY(0px);
+    }
+
+    50% {
+      transform: translateY(-10px);
+    }
+  }
+
+  @keyframes pulse-slow {
+
+    0%,
+    100% {
+      opacity: 0.3;
+      transform: scale(1);
+    }
+
+    50% {
+      opacity: 0.5;
+      transform: scale(1.05);
+    }
+  }
+}

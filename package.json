@@ -1,0 +1,20 @@
+{
+    "name": "lyricvault",
+    "version": "0.1.1",
+    "description": "Your personal music sanctuary — AI-powered lyric research and local music library",
+    "main": "electron/main.js",
+    "private": true,
+    "scripts": {
+        "dev": "electron .",
+        "build:frontend": "cd frontend && npm run build",
+        "setup:python": "powershell -ExecutionPolicy Bypass -File scripts/setup-python.ps1",
+        "dist": "npm run build:frontend && electron-builder",
+        "dist:quick": "electron-builder"
+    },
+    "devDependencies": {
+        "electron": "^35.0.0",
+        "electron-builder": "^26.0.0"
+    },
+    "author": "McEveritts",
+    "license": "MIT"
+}

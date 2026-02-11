@@ -1,0 +1,51 @@
+appId: com.lyricvault.app
+productName: LyricVault
+copyright: Copyright © 2026
+
+directories:
+  output: release
+
+asar: false
+
+files:
+  - electron/**/*
+  - frontend/dist/**/*
+  - package.json
+
+extraResources:
+  - from: backend_temp/
+    to: backend/
+    filter:
+      - "**/*"
+      - "!venv/**"
+      - "!__pycache__/**"
+      - "!*.db"
+      - "!downloads/**"
+      - "!test_*.py"
+      - "!check_*.py"
+      - "!trigger_*.py"
+      - "!**/logs"
+      - "!**/logs/**"
+  - from: python-embed/
+    to: python-embed/
+    filter:
+      - "**/*"
+  - from: ffmpeg/
+    to: ffmpeg/
+    filter:
+      - "**/*"
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  signAndEditExecutable: false
+  forceCodeSigning: false
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: LyricVault

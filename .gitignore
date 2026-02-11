@@ -1,0 +1,55 @@
+# IDEs
+.vscode/
+.idea/
+
+# Node
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.mypy_cache/
+
+# Sensitive Data
+.env
+*.env
+*.key
+
+# Application Specific
+backend/downloads/
+backend/lyricvault.db
+backend/lyricvault_v2.db
+lyricvault_v2.db
+backend_temp/
+logs/
+frontend/lint.json
+frontend/lint_clean.txt
+
+# Large Binaries / Build Artifacts
+ffmpeg/
+python-embed/
+release/
+electron/dist/
+electron/out/
+
+# OS
+.DS_Store
+Thumbs.db
