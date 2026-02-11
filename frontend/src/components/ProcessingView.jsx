@@ -2,25 +2,33 @@ import React, { useState, useEffect } from 'react';
 
 const ProcessingView = () => {
     const [songs, setSongs] = useState([]);
+    const [tasks, setTasks] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const fetchStatus = async () => {
+        const fetchData = async () => {
             try {
-                const response = await fetch('http://localhost:8000/library');
-                if (response.ok) {
-                    const data = await response.json();
+                // Fetch library for overall status
+                const libRes = await fetch('http://localhost:8000/library');
+                if (libRes.ok) {
+                    const data = await libRes.json();
                     setSongs(data);
                 }
+
+                // Fetch active tasks for live progress
+                const taskRes = await fetch('http://localhost:8000/tasks');
+                if (taskRes.ok) {
+                    const data = await taskRes.json();
+                    setTasks(data);
+                }
             } catch (error) {
-                console.error("Failed to fetch library:", error);
+                console.error("Failed to fetch data:", error);
             }
             setLoading(false);
         };
 
-        fetchStatus();
-        // Poll every 3 seconds for updates
-        const interval = setInterval(fetchStatus, 3000);
+        fetchData();
+        const interval = setInterval(fetchData, 1500); // Poll faster for "Live" feel
         return () => clearInterval(interval);
     }, []);
 
@@ -54,16 +62,16 @@ const ProcessingView = () => {
                     </div>
                 </div>
 
-                {/* Processing Queue */}
-                {processingCount > 0 && (
-                    <section>
+                {/* Live Tasks */}
+                {tasks.length > 0 && (
+                    <section className="animate-in slide-in-from-top-4 duration-500">
                         <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-                            Currently Processing
+                            <span className="w-2.5 h-2.5 rounded-full bg-google-gold animate-pulse"></span>
+                            Live Activity
                         </h3>
-                        <div className="space-y-2">
-                            {songs.filter(s => s.lyrics_status === 'processing').map(song => (
-                                <ProcessingItem key={song.id} song={song} />
+                        <div className="space-y-4">
+                            {tasks.map(task => (
+                                <LiveTaskItem key={task.id} task={task} />
                             ))}
                         </div>
                     </section>
@@ -93,21 +101,33 @@ const ProcessingView = () => {
     );
 };
 
-const ProcessingItem = ({ song }) => (
-    <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-4 flex items-center gap-4">
-        <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
-            <svg className="w-5 h-5 text-amber-400 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
+const LiveTaskItem = ({ task }) => (
+    <div className="bg-google-surface border border-white/5 rounded-2xl p-5 shadow-xl relative overflow-hidden group">
+        <div className="flex items-center gap-4 mb-4 relative z-10">
+            <div className="w-12 h-12 rounded-2xl bg-google-gold/10 flex items-center justify-center border border-google-gold/20">
+                <svg className="w-6 h-6 text-google-gold animate-spin-slow" fill="none" viewBox="0 0 24 24">
+                    <path stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" d="M12 3v3m0 12v3M3 12h3m12 0h3" />
+                </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+                <h4 className="text-white font-bold truncate">{task.title}</h4>
+                <p className="text-google-gold/70 text-xs font-medium uppercase tracking-widest">{task.status}</p>
+            </div>
+            <div className="text-xl font-black text-google-gold opacity-40">
+                {task.progress}%
+            </div>
         </div>
-        <div className="flex-1">
-            <p className="text-white font-medium truncate">{song.title}</p>
-            <p className="text-amber-400/70 text-sm">{song.artist}</p>
+
+        {/* Progress Bar Container */}
+        <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden relative z-10">
+            <div
+                className="h-full bg-google-gold transition-all duration-700 ease-out shadow-[0_0_15px_rgba(226,194,134,0.3)]"
+                style={{ width: `${task.progress}%` }}
+            ></div>
         </div>
-        <div className="text-xs text-amber-400 bg-amber-500/10 px-3 py-1 rounded-full">
-            Fetching lyrics...
-        </div>
+
+        {/* Subtle Background Glow */}
+        <div className="absolute inset-0 bg-gradient-to-r from-google-gold/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
     </div>
 );
 

@@ -18,7 +18,6 @@ const Sidebar = ({ activeTab, onTabChange }) => {
                     <h1 className="text-xl font-bold text-google-text tracking-wide font-sans">
                         LYRIC<span className="text-google-gold">VAULT</span>
                     </h1>
-                    <p className="text-[10px] uppercase tracking-[0.2em] text-google-text-secondary font-medium pl-0.5">Pixel 10 Pro</p>
                 </div>
             </div>
 
@@ -80,7 +79,10 @@ const Sidebar = ({ activeTab, onTabChange }) => {
             </nav>
 
             {/* User Profile / Status - Clean Tech */}
-            <div className="bg-google-surface-high/50 backdrop-blur-md rounded-2xl p-4 mt-4 border border-white/5 relative overflow-hidden group hover:bg-google-surface-high transition-colors duration-300">
+            <button
+                onClick={() => onTabChange('settings')}
+                className="w-full text-left bg-google-surface-high/50 backdrop-blur-md rounded-2xl p-4 mt-4 border border-white/5 relative overflow-hidden group hover:bg-google-surface-high transition-colors duration-300"
+            >
                 <div className="flex items-center gap-3 relative z-10">
                     <div className="w-9 h-9 rounded-full bg-google-gold flex items-center justify-center shadow-lg shadow-google-gold/20">
                         <span className="text-xs font-bold text-black">LV</span>
@@ -93,7 +95,7 @@ const Sidebar = ({ activeTab, onTabChange }) => {
                         </div>
                     </div>
                 </div>
-            </div>
+            </button>
         </aside>
     );
 };

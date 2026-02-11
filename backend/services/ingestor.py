@@ -128,4 +128,34 @@ class IngestionService:
             print(f"Error downloading: {e}")
             raise HTTPException(status_code=400, detail=f"Download failed: {str(e)}")
 
+    def search_platforms(self, query: str, platform: str):
+        """Search for content on YT, Spotify, or SoundCloud using yt-dlp search"""
+        search_prefix = {
+            "youtube": "ytsearch5:",
+            "spotify": "ytsearch5:", # yt-dlp can handle spotify links/search via YT
+            "soundcloud": "scsearch5:"
+        }.get(platform, "ytsearch5:")
+
+        search_query = f"{search_prefix}{query}"
+        
+        try:
+            with yt_dlp.YoutubeDL({'quiet': True, 'noplaylist': True}) as ydl:
+                info = ydl.extract_info(search_query, download=False)
+                results = []
+                for entry in info.get('entries', []):
+                    if entry:
+                        results.append({
+                            "id": entry.get('id'),
+                            "title": entry.get('title'),
+                            "artist": entry.get('uploader') or entry.get('artist'),
+                            "url": entry.get('webpage_url') or entry.get('url'),
+                            "duration": entry.get('duration'),
+                            "thumbnail": entry.get('thumbnail'),
+                            "platform": platform
+                        })
+                return results
+        except Exception as e:
+            print(f"Search failed for {platform}: {e}")
+            return []
+
 ingestor = IngestionService()

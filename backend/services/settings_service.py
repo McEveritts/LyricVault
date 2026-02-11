@@ -96,57 +96,36 @@ def has_gemini_api_key() -> bool:
 # Rate limits shown are for the free tier (as of early 2026)
 AVAILABLE_MODELS = [
     {
-        "id": "gemini-3.0-flash",
-        "name": "Gemini 3.0 Flash",
-        "description": "Latest generation fast model — best speed-to-quality ratio",
-        "rate_limit": "15 RPM / 1,500 RPD",
-        "tier": "recommended",
-    },
-    {
         "id": "gemini-3.0-pro",
         "name": "Gemini 3.0 Pro",
-        "description": "Latest generation pro model — highest quality output",
+        "description": "Highest quality output — best for complex lyrics",
         "rate_limit": "5 RPM / 200 RPD",
         "tier": "quality",
     },
     {
-        "id": "gemini-2.5-flash-preview-05-20",
-        "name": "Gemini 2.5 Flash (Preview)",
-        "description": "Cutting-edge preview — may be less stable",
-        "rate_limit": "10 RPM / 500 RPD",
-        "tier": "preview",
+        "id": "gemini-3.0-flash",
+        "name": "Gemini 3.0 Flash",
+        "description": "Next-gen fast model — optimal speed and quality",
+        "rate_limit": "15 RPM / 1,500 RPD",
+        "tier": "recommended",
     },
     {
         "id": "gemini-2.0-flash",
-        "name": "Gemini 2.0 Flash",
-        "description": "Fast and versatile — well-tested workhorse",
+        "name": "Gemini 2.0 Flash (Stable)",
+        "description": "High performance stable workhorse — fast and reliable",
         "rate_limit": "15 RPM / 1,500 RPD",
         "tier": "stable",
     },
     {
-        "id": "gemini-2.0-flash-lite",
-        "name": "Gemini 2.0 Flash Lite",
-        "description": "Fastest responses — lower quality, highest free-tier limits",
-        "rate_limit": "30 RPM / 1,500 RPD",
-        "tier": "fast",
-    },
-    {
-        "id": "gemini-1.5-flash",
-        "name": "Gemini 1.5 Flash",
-        "description": "Previous-gen fast model — reliable and battle-tested",
-        "rate_limit": "15 RPM / 1,500 RPD",
-        "tier": "stable",
-    },
-    {
-        "id": "gemini-1.5-pro",
-        "name": "Gemini 1.5 Pro",
-        "description": "Previous-gen pro — great for complex lyrics, slower",
-        "rate_limit": "2 RPM / 50 RPD",
-        "tier": "quality",
+        "id": "gemini-2.0-flash-preview-05-20",
+        "name": "Gemini 2.0 Flash (Preview)",
+        "description": "Cutting-edge preview — latest capabilities",
+        "rate_limit": "10 RPM / 500 RPD",
+        "tier": "preview",
     },
 ]
 
-DEFAULT_MODEL = "gemini-3.0-flash"
+DEFAULT_MODEL = "gemini-2.0-flash"
 
 
 def get_available_models() -> list[dict]:

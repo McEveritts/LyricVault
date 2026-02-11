@@ -8,6 +8,7 @@ import ActivityView from './components/ActivityView';
 import ProcessingView from './components/ProcessingView';
 import SettingsView from './components/SettingsView';
 import SongDetailView from './components/SongDetailView';
+import DiscoveryView from './components/DiscoveryView';
 
 export default function App() {
   const [refreshKey, setRefreshKey] = useState(0);
@@ -124,6 +125,7 @@ export default function App() {
       case 'settings':
         return <SettingsView />;
       case 'discover':
+        return <DiscoveryView onIngest={handleIngestSuccess} />;
       case 'playlists':
         return (
           <div className="flex items-center justify-center h-full text-google-text-secondary flex-col gap-4">

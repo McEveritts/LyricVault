@@ -40,6 +40,9 @@ from services import settings_service
 
 app = FastAPI(title="LyricVault API", version="0.1.1")
 
+# In-memory task tracking
+active_tasks = {}
+
 # Mount downloads directory to serve audio files
 # Ensure directory exists
 os.makedirs("downloads", exist_ok=True)
@@ -116,6 +119,15 @@ async def ingest_song(request: IngestRequest, background_tasks: BackgroundTasks,
 
 
     # 3. Fetch Lyrics (Background Task)
+    task_id = f"lyrics_{song.id}"
+    active_tasks[task_id] = {
+        "id": task_id,
+        "type": "lyrics",
+        "title": song.title,
+        "status": "processing",
+        "progress": 10
+    }
+
     # Pass metadata for search, including file_path for audio transcription fallback
     background_tasks.add_task(process_lyrics, song.id, metadata['title'], metadata['artist'], metadata['file_path'])
     
@@ -133,23 +145,42 @@ async def ingest_song(request: IngestRequest, background_tasks: BackgroundTasks,
 
 def process_lyrics(song_id: int, title: str, artist: str, file_path: str = None):
     """Background task to fetch lyrics using multi-source approach"""
+    task_id = f"lyrics_{song_id}"
     db_gen = get_db()
     db = next(db_gen)
     try:
+        if task_id in active_tasks:
+            active_tasks[task_id]["progress"] = 30
+            active_tasks[task_id]["status"] = "Searching databases..."
+
         # Pass file_path to enable audio transcription fallback
         lyrics = lyricist.transcribe(title, artist, file_path)
+        
+        if task_id in active_tasks:
+            active_tasks[task_id]["progress"] = 80
+            active_tasks[task_id]["status"] = "Finalizing..."
+
         song = db.get(models.Song, song_id)
         if song:
             if lyrics:
                 song.lyrics = lyrics
                 song.lyrics_synced = True
                 print(f"Lyrics found for {title}")
+                if task_id in active_tasks:
+                    active_tasks[task_id]["status"] = "Complete"
+                    active_tasks[task_id]["progress"] = 100
             else:
                 song.lyrics = "Lyrics not found."
+                if task_id in active_tasks:
+                    active_tasks[task_id]["status"] = "Failed"
+                    active_tasks[task_id]["progress"] = 100
             db.commit()
     except Exception as e:
         print(f"Error processing lyrics: {e}")
+        if task_id in active_tasks:
+            active_tasks[task_id]["status"] = f"Error: {str(e)}"
     finally:
+        # Keep task in list for a bit then remove (or just leave it)
         try:
             next(db_gen)
         except StopIteration:
@@ -170,25 +201,32 @@ async def retry_lyrics(song_id: int, background_tasks: BackgroundTasks, db: Sess
     return {"status": "retrying", "song": song.title}
 
 @app.post("/research_lyrics/{song_id}")
-async def research_lyrics_manual(song_id: int, db: Session = Depends(get_db)):
+async def research_lyrics_manual(song_id: int, request: ModelRequest, db: Session = Depends(get_db)):
     """Manually trigger Gemini AI research for a song"""
     song = db.get(models.Song, song_id)
     if not song:
         raise HTTPException(status_code=404, detail="Song not found")
     
-    # 1. Try Gemini Research directly first (skip syncedlyrics if user is manually researching)
-    print(f"Manual research triggered for: {song.title}")
+    # 1. Try Gemini Research directly first
+    print(f"Manual research triggered for: {song.title} using model {request.model_id}")
     
-    # Try Research
-    lyrics = lyricist._try_gemini_research(song.title, song.artist.name)
-    
-    # If research failed, try transcription if audio exists
-    if not lyrics and song.file_path and os.path.exists(song.file_path):
-         lyrics = lyricist._try_gemini_transcription(song.file_path, song.title, song.artist.name)
+    # Temporarily override selected model if provided
+    original_model = settings_service.get_gemini_model()
+    try:
+        settings_service.set_gemini_model(request.model_id)
+        # Try Research
+        lyrics = lyricist._try_gemini_research(song.title, song.artist.name)
+        
+        # If research failed, try transcription if audio exists
+        if not lyrics and song.file_path and os.path.exists(song.file_path):
+             lyrics = lyricist._try_gemini_transcription(song.file_path, song.title, song.artist.name)
+    finally:
+        # Restore original setting
+        settings_service.set_gemini_model(original_model)
     
     if lyrics:
         song.lyrics = lyrics
-        song.lyrics_synced = False  # AI lyrics usually aren't time-synced
+        song.lyrics_synced = False
         db.commit()
         return {"status": "success", "lyrics": lyrics}
     else:
@@ -233,9 +271,7 @@ def get_song(song_id: int, db: Session = Depends(get_db)):
         "duration": song.duration
     }
 
-# In-memory task tracking (for demo purposes)
-active_tasks = {}
-
+# Task Status Schema for type checking
 class TaskStatus(BaseModel):
     id: str
     type: str
@@ -247,6 +283,12 @@ class TaskStatus(BaseModel):
 def get_tasks():
     """Return current active/recent tasks"""
     return list(active_tasks.values())
+
+@app.get("/search")
+def search_music(q: str, platform: str = "youtube"):
+    """Search for music across supported platforms"""
+    results = ingestor.search_platforms(q, platform)
+    return results
 
 # ── Settings Endpoints ────────────────────────────────────────────────
 

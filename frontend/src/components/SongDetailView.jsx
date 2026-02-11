@@ -2,7 +2,26 @@ import React, { useState, useEffect, useRef } from 'react';
 
 const SongDetailView = ({ song, isPlaying, onPlayPause, isEmpty, currentTime }) => {
     const [activeTab, setActiveTab] = useState('lyrics');
+    const [researching, setResearching] = useState(false);
+    const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash');
+    const [availableModels, setAvailableModels] = useState([]);
+    const [statusMsg, setStatusMsg] = useState(null);
     const lyricsContainerRef = useRef(null);
+
+    useEffect(() => {
+        const fetchModels = async () => {
+            try {
+                const res = await fetch('http://localhost:8000/settings/models');
+                if (res.ok) {
+                    const data = await res.json();
+                    setAvailableModels(data.models);
+                }
+            } catch (err) {
+                console.error("Failed to fetch models:", err);
+            }
+        };
+        fetchModels();
+    }, []);
 
 
 
@@ -159,18 +178,66 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, isEmpty, currentTime }) 
                                                         : 'text-google-text-secondary opacity-40 blur-[0.5px]'
                                                     }
                                                 `}
-                                                onClick={() => {
-                                                    // Optional: Seek to this line
-                                                    // onSeek(line.time) 
-                                                }}
                                             >
                                                 {line.content}
                                             </p>
                                         ))
                                     ) : (
-                                        <div className="flex flex-col items-center justify-center opacity-50 py-20">
-                                            <span className="text-4xl mb-4">😶</span>
-                                            <p>No lyrics available</p>
+                                        <div className="flex flex-col items-center justify-center py-20">
+                                            <div className="w-16 h-16 bg-google-surface rounded-2xl flex items-center justify-center mb-4 opacity-50">
+                                                <span className="text-3xl">😶</span>
+                                            </div>
+                                            <p className="text-google-text-secondary mb-8">No lyrics available yet.</p>
+
+                                            <div className="bg-google-surface/50 border border-white/5 p-6 rounded-[2rem] max-w-sm w-full space-y-4">
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-bold text-google-text-secondary uppercase tracking-widest pl-1">Research Model</label>
+                                                    <select
+                                                        value={selectedModel}
+                                                        onChange={(e) => setSelectedModel(e.target.value)}
+                                                        className="w-full bg-google-surface border border-white/10 rounded-xl px-4 py-2 text-sm text-google-text focus:outline-none focus:ring-1 focus:ring-google-gold"
+                                                    >
+                                                        {availableModels.map(m => (
+                                                            <option key={m.id} value={m.id}>{m.name}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+
+                                                <button
+                                                    onClick={async () => {
+                                                        setResearching(true);
+                                                        setStatusMsg("AI is researching...");
+                                                        try {
+                                                            const res = await fetch(`http://localhost:8000/research_lyrics/${song.id}`, {
+                                                                method: 'POST',
+                                                                headers: { 'Content-Type': 'application/json' },
+                                                                body: JSON.stringify({ model_id: selectedModel })
+                                                            });
+                                                            const data = await res.json();
+                                                            if (data.status === 'success') {
+                                                                setStatusMsg("Lyrics found! Refreshing...");
+                                                                // In a real app we'd refresh the parent or the song state
+                                                                window.location.reload();
+                                                            } else {
+                                                                setStatusMsg(data.message || "Research failed.");
+                                                            }
+                                                        } catch (err) {
+                                                            setStatusMsg("Connection error.");
+                                                        } finally {
+                                                            setResearching(false);
+                                                        }
+                                                    }}
+                                                    disabled={researching}
+                                                    className="w-full py-3 bg-google-gold text-black rounded-xl font-bold text-sm hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                                                >
+                                                    {researching ? (
+                                                        <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin"></span>
+                                                    ) : (
+                                                        <span>✨ Research with Gemini</span>
+                                                    )}
+                                                </button>
+                                                {statusMsg && <p className="text-[10px] text-center text-google-gold font-medium uppercase tracking-wider">{statusMsg}</p>}
+                                            </div>
                                         </div>
                                     )}
                                 </div>

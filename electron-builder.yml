@@ -26,6 +26,7 @@ extraResources:
       - "!trigger_*.py"
       - "!**/logs"
       - "!**/logs/**"
+      - "!**/.env"
 
   - from: python-embed/
     to: python-embed/
