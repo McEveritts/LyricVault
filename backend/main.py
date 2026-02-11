@@ -40,7 +40,7 @@ from services.lyricist import lyricist
 from services.gemini_service import gemini_service
 from services import settings_service
 
-app = FastAPI(title="LyricVault API", version="0.1.5")
+app = FastAPI(title="LyricVault API", version="0.2.1.1")
 
 # In-memory task tracking (thread-safe)
 _task_lock = threading.Lock()

@@ -124,21 +124,28 @@ class GeminiService:
 
     def validate_key(self, api_key: str) -> bool:
         """
-        Test whether a given API key is valid by making a small request.
-        Returns True if the key works, False otherwise.
+        Validate the API key by attempting to list models.
+        This is faster and more reliable than generating content.
         """
         try:
+            # lightweight check - just list 1 model
             test_client = genai.Client(api_key=api_key)
-            response = test_client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents="Say hello in one word."
-            )
-            return response.text is not None
+            list(test_client.models.list(config={"page_size": 1}))
+            return True
         except Exception as e:
             error_msg = str(e)
             print(f"Gemini key validation failed: {error_msg}")
-            # Store last validation error for better user feedback
-            self._last_validation_error = error_msg
+            
+            # Extract clean error message for ClientErrors
+            if "401" in error_msg or "API key not valid" in error_msg:
+                self._last_validation_error = "Authentication failed. Please check your API key."
+            elif "400" in error_msg and "API key" in error_msg:
+                self._last_validation_error = "Invalid API key format."
+            elif "403" in error_msg:
+                 self._last_validation_error = "Permission denied. API key may be restricted."
+            else:
+                self._last_validation_error = f"Connection failed. ({error_msg[:50]}...)"
+            
             return False
 
     def _call_with_retry(self, call_fn):

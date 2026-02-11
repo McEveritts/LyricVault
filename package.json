@@ -1,6 +1,6 @@
 {
     "name": "lyricvault",
-    "version": "0.1.5",
+    "version": "0.2.1.1",
     "description": "Your personal music sanctuary — AI-powered lyric research and local music library",
     "main": "electron/main.js",
     "private": true,

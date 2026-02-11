@@ -38,7 +38,6 @@ extraResources:
       - "**/*"
 
 win:
-  icon: assets/icon.ico
   target:
     - target: nsis
       arch:
@@ -46,6 +45,7 @@ win:
     - target: portable
       arch:
         - x64
+  icon: assets/icon_v0.1.1.ico
   artifactName: "LyricVault ${version}.${ext}"
   signAndEditExecutable: false
   forceCodeSigning: false
