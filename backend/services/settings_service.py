@@ -7,6 +7,7 @@ in the OS-appropriate user data directory.
 import json
 import os
 import base64
+import re
 from pathlib import Path
 
 
@@ -51,6 +52,29 @@ def _deobfuscate(value: str) -> str:
     return base64.b64decode(value.encode("utf-8")).decode("utf-8")
 
 
+def _normalize_api_key(value: str | None) -> str | None:
+    """Normalize API key input from settings or env."""
+    if value is None:
+        return None
+    key = value.strip()
+    if not key:
+        return None
+    # Common paste mistake: quoted key from shell/env files.
+    if (key.startswith('"') and key.endswith('"')) or (key.startswith("'") and key.endswith("'")):
+        key = key[1:-1].strip()
+    return key or None
+
+
+def _looks_like_gemini_api_key(value: str | None) -> bool:
+    """
+    Lightweight format check.
+    Typical Gemini keys begin with AIza and are longer than test placeholders.
+    """
+    if not value:
+        return False
+    return re.fullmatch(r"AIza[A-Za-z0-9_\-]{30,}", value) is not None
+
+
 # ── Public API ────────────────────────────────────────────────────────
 
 def get_gemini_api_key() -> str | None:
@@ -64,17 +88,28 @@ def get_gemini_api_key() -> str | None:
     stored_key = settings.get("gemini_api_key")
     if stored_key:
         try:
-            return _deobfuscate(stored_key)
+            key = _normalize_api_key(_deobfuscate(stored_key))
         except Exception:
-            return stored_key  # Fallback: treat as plain text
+            key = _normalize_api_key(stored_key)  # Fallback: treat as plain text
+        if _looks_like_gemini_api_key(key):
+            return key
+        # Cleanup stale/placeholder keys so status reflects reality.
+        settings.pop("gemini_api_key", None)
+        _save_settings(settings)
 
-    return os.getenv("GEMINI_API_KEY")
+    env_key = _normalize_api_key(os.getenv("GEMINI_API_KEY"))
+    if _looks_like_gemini_api_key(env_key):
+        return env_key
+    return None
 
 
 def set_gemini_api_key(key: str):
     """Save a Gemini API key to persistent settings."""
+    normalized = _normalize_api_key(key)
+    if not normalized:
+        raise ValueError("API key cannot be empty")
     settings = _load_settings()
-    settings["gemini_api_key"] = _obfuscate(key)
+    settings["gemini_api_key"] = _obfuscate(normalized)
     _save_settings(settings)
 
 
@@ -96,14 +131,14 @@ def has_gemini_api_key() -> bool:
 # Rate limits shown are for the free tier (as of early 2026)
 AVAILABLE_MODELS = [
     {
-        "id": "gemini-3.0-pro",
+        "id": "gemini-3-pro-preview",
         "name": "Gemini 3.0 Pro",
         "description": "Highest quality output — best for complex lyrics",
         "rate_limit": "5 RPM / 200 RPD",
         "tier": "quality",
     },
     {
-        "id": "gemini-3.0-flash",
+        "id": "gemini-3-flash-preview",
         "name": "Gemini 3.0 Flash",
         "description": "Next-gen speed and efficiency",
         "rate_limit": "15 RPM / 1,500 RPD",
@@ -136,7 +171,15 @@ def get_available_models() -> list[dict]:
 def get_gemini_model() -> str:
     """Get the user's preferred Gemini model (defaults to gemini-2.0-flash)."""
     settings = _load_settings()
-    return settings.get("gemini_model", DEFAULT_MODEL)
+    selected = settings.get("gemini_model", DEFAULT_MODEL)
+    valid_ids = {m["id"] for m in AVAILABLE_MODELS}
+    if selected in valid_ids:
+        return selected
+
+    # Heal stale/invalid saved model IDs from older configs.
+    settings["gemini_model"] = DEFAULT_MODEL
+    _save_settings(settings)
+    return DEFAULT_MODEL
 
 
 def set_gemini_model(model_id: str):

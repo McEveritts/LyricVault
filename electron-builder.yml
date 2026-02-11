@@ -5,7 +5,7 @@ copyright: Copyright © 2026
 directories:
   output: release
 
-asar: false
+asar: true
 
 files:
   - electron/**/*

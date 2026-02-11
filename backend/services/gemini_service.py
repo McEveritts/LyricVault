@@ -81,6 +81,13 @@ AUDIO_TRANSCRIPTION_CONFIG = types.GenerateContentConfig(
     safety_settings=_PERMISSIVE_SAFETY,
 )
 
+# Ignore ambient proxy env vars (HTTP_PROXY/HTTPS_PROXY/ALL_PROXY) by default.
+# This keeps Gemini connectivity stable when the shell injects a dead proxy.
+GENAI_HTTP_OPTIONS = types.HttpOptions(
+    clientArgs={"trust_env": False},
+    asyncClientArgs={"trust_env": False},
+)
+
 
 class GeminiService:
     def __init__(self):
@@ -99,7 +106,10 @@ class GeminiService:
         api_key = get_gemini_api_key()
         if api_key and api_key != self._current_key:
             try:
-                self.client = genai.Client(api_key=api_key)
+                self.client = genai.Client(
+                    api_key=api_key,
+                    http_options=GENAI_HTTP_OPTIONS,
+                )
                 self._current_key = api_key
                 print("GeminiService initialized successfully")
             except Exception as e:
@@ -128,7 +138,10 @@ class GeminiService:
         This confirms the key actually has permission to generate content.
         """
         try:
-            test_client = genai.Client(api_key=api_key)
+            test_client = genai.Client(
+                api_key=api_key,
+                http_options=GENAI_HTTP_OPTIONS,
+            )
             test_client.models.generate_content(
                 model="gemini-2.0-flash",
                 contents="test"

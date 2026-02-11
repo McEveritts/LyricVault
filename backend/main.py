@@ -83,6 +83,18 @@ class ResearchRequest(BaseModel):
     model_id: str = "gemini-2.0-flash"
     mode: str = "auto"
 
+def _duration_seconds(value) -> int | None:
+    """Normalize duration values to integer seconds for API responses."""
+    if value is None:
+        return None
+    try:
+        seconds = float(value)
+        if seconds < 0:
+            return None
+        return int(round(seconds))
+    except (TypeError, ValueError):
+        return None
+
 def normalize_url(url: str) -> str:
     """Normalize URL for idempotency without mutating case-sensitive IDs."""
     try:
@@ -285,7 +297,7 @@ def get_library(db: Session = Depends(get_db)):
             "lyrics_status": _lyrics_status(song, processing_song_ids),
             "stream_url": stream_url,
             "cover_url": song.cover_url,
-            "duration": song.duration
+            "duration": _duration_seconds(song.duration)
         })
     return response
 
@@ -309,7 +321,7 @@ def get_song(song_id: int, db: Session = Depends(get_db)):
         "file_path": song.file_path,
         "stream_url": stream_url,
         "cover_url": song.cover_url,
-        "duration": song.duration
+        "duration": _duration_seconds(song.duration)
     }
 
 # Settings Endpoints

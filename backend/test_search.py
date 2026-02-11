@@ -1,7 +1,7 @@
 import requests
 import json
 
-def test_search(query, platform="youtube"):
+def run_search(query, platform="youtube"):
     print(f"\n--- Testing Search: {query} on {platform} ---")
     try:
         response = requests.get(
@@ -20,6 +20,6 @@ def test_search(query, platform="youtube"):
         print(f"Failed: {e}")
 
 if __name__ == "__main__":
-    test_search("Pendulum", "youtube")
-    test_search("Pendulum", "soundcloud")
-    test_search("Pendulum", "spotify")
+    run_search("Pendulum", "youtube")
+    run_search("Pendulum", "soundcloud")
+    run_search("Pendulum", "spotify")

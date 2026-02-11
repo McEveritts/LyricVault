@@ -14,6 +14,18 @@ from services.lyricist import lyricist
 
 logger = logging.getLogger(__name__)
 
+def _normalize_duration_seconds(value):
+    """Store duration as integer seconds in DB."""
+    if value is None:
+        return None
+    try:
+        seconds = float(value)
+        if seconds < 0:
+            return None
+        return int(round(seconds))
+    except (TypeError, ValueError):
+        return None
+
 class Worker:
     def __init__(self, worker_id=None):
         self.worker_id = worker_id or f"worker_{socket.gethostname()}_{os.getpid()}"
@@ -181,7 +193,7 @@ class Worker:
                     title=metadata['title'],
                     artist_id=artist.id,
                     file_path=metadata['file_path'],
-                    duration=metadata['duration'],
+                    duration=_normalize_duration_seconds(metadata.get('duration')),
                     source_url=url,
                     lyrics_synced=False,
                     cover_url=metadata.get('cover_url')
