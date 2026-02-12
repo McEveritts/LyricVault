@@ -7,9 +7,9 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from utils.lrc_validator import validate_lrc
 from services.settings_service import (
-    set_genius_api_key,
-    get_genius_api_key,
-    delete_genius_api_key,
+    set_genius_credentials,
+    get_genius_credentials,
+    delete_genius_credentials,
     get_strict_lrc_mode,
     set_strict_lrc_mode,
 )
@@ -78,29 +78,34 @@ class TestReleaseVerification(unittest.TestCase):
 
     def test_genius_key_persistence(self):
         """Verify Genius API key logic and env var export."""
-        original_key = get_genius_api_key()
-        test_key = "test_genius_token_12345"
+        original_creds = get_genius_credentials()
+        test_token = "test_genius_token_12345"
         
         try:
-            # 1. Set Key
-            set_genius_api_key(test_key)
+            # 1. Set Token
+            set_genius_credentials(access_token=test_token)
             
             # 2. Verify settings retrieval
-            retrieved = get_genius_api_key()
-            self.assertEqual(retrieved, test_key, "Should retrieve saved key")
+            retrieved = get_genius_credentials()
+            self.assertEqual(retrieved["access_token"], test_token, "Should retrieve saved token")
             
             # 3. Verify Env Var export
-            self.assertEqual(os.environ.get("GENIUS_ACCESS_TOKEN"), test_key, "Should export to env var")
+            self.assertEqual(os.environ.get("GENIUS_ACCESS_TOKEN"), test_token, "Should export to env var")
             
             # 4. Delete and verify removal behavior
-            delete_genius_api_key()
-            self.assertIsNone(get_genius_api_key(), "Should be None after delete")
+            delete_genius_credentials()
+            creds = get_genius_credentials()
+            self.assertIsNone(creds["access_token"], "Should be None after delete")
             self.assertIsNone(os.environ.get("GENIUS_ACCESS_TOKEN"), "Should be removed from env var")
         finally:
-            if original_key:
-                set_genius_api_key(original_key)
+            if original_creds:
+                set_genius_credentials(
+                    client_id=original_creds.get("client_id"),
+                    client_secret=original_creds.get("client_secret"),
+                    access_token=original_creds.get("access_token")
+                )
             else:
-                delete_genius_api_key()
+                delete_genius_credentials()
 
     def test_lyrics_mode_persistence(self):
         """Verify strict_lrc mode can be persisted and restored."""

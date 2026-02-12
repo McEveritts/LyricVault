@@ -13,18 +13,23 @@ const TIER_COLORS = {
 const SettingsView = () => {
     const [activeTab, setActiveTab] = useState('api');
     const [geminiKey, setGeminiKey] = useState('');
-    const [geniusKey, setGeniusKey] = useState('');
+    const [geniusClientId, setGeniusClientId] = useState('');
+    const [geniusClientSecret, setGeniusClientSecret] = useState('');
+    const [geniusAccessToken, setGeniusAccessToken] = useState('');
     const [keyStatus, setKeyStatus] = useState(null);
     const [geniusStatus, setGeniusStatus] = useState(null);
     const [saving, setSaving] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const [message, setMessage] = useState(null);
     const [showKey, setShowKey] = useState(false);
-    const [showGeniusKey, setShowGeniusKey] = useState(false);
+    const [showGeniusClientId, setShowGeniusClientId] = useState(false);
+    const [showGeniusClientSecret, setShowGeniusClientSecret] = useState(false);
+    const [showGeniusAccessToken, setShowGeniusAccessToken] = useState(false);
     const [models, setModels] = useState([]);
     const [selectedModel, setSelectedModel] = useState('');
     const [savingModel, setSavingModel] = useState(false);
     const [testing, setTesting] = useState(false);
+    const [testingGenius, setTestingGenius] = useState(false);
     const [strictLrc, setStrictLrc] = useState(true);
     const [savingLyricsMode, setSavingLyricsMode] = useState(false);
     const [ytdlpStatus, setYtdlpStatus] = useState(null);
@@ -41,7 +46,7 @@ const SettingsView = () => {
         try {
             const [geminiRes, geniusRes] = await Promise.all([
                 fetch(`${API_BASE}/settings/gemini-key`),
-                fetch(`${API_BASE}/settings/genius-key`)
+                fetch(`${API_BASE}/settings/genius-credentials`)
             ]);
 
             if (geminiRes.ok) setKeyStatus(await geminiRes.json());
@@ -110,22 +115,28 @@ const SettingsView = () => {
     };
 
     const handleSaveGenius = async () => {
-        if (!geniusKey.trim()) return;
+        if (!geniusClientId.trim() && !geniusClientSecret.trim() && !geniusAccessToken.trim()) return;
         setSaving(true);
         setMessage(null);
         try {
-            const res = await fetch(`${API_BASE}/settings/genius-key`, {
+            const res = await fetch(`${API_BASE}/settings/genius-credentials`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ api_key: geniusKey })
+                body: JSON.stringify({
+                    client_id: geniusClientId,
+                    client_secret: geniusClientSecret,
+                    access_token: geniusAccessToken
+                })
             });
             const data = await res.json();
             if (res.ok) {
                 setMessage({ type: 'success', text: data.message });
-                setGeniusKey('');
+                setGeniusClientId('');
+                setGeniusClientSecret('');
+                setGeniusAccessToken('');
                 fetchKeyStatuses();
             } else {
-                setMessage({ type: 'error', text: data.detail || 'Failed to save key' });
+                setMessage({ type: 'error', text: data.detail || 'Failed to save credentials' });
             }
         } catch {
             setMessage({ type: 'error', text: 'Connection error.' });
@@ -150,11 +161,11 @@ const SettingsView = () => {
     const handleDeleteGenius = async () => {
         setDeleting(true);
         try {
-            await fetch(`${API_BASE}/settings/genius-key`, { method: 'DELETE' });
+            await fetch(`${API_BASE}/settings/genius-credentials`, { method: 'DELETE' });
             fetchKeyStatuses();
-            setMessage({ type: 'success', text: 'Genius API key removed' });
+            setMessage({ type: 'success', text: 'Genius credentials removed' });
         } catch {
-            setMessage({ type: 'error', text: 'Failed to remove key.' });
+            setMessage({ type: 'error', text: 'Failed to remove credentials.' });
         } finally {
             setDeleting(false);
         }
@@ -180,6 +191,29 @@ const SettingsView = () => {
             setMessage({ type: 'error', text: 'Connection error.' });
         } finally {
             setTesting(false);
+        }
+    };
+
+    const handleTestGeniusKey = async () => {
+        if (!geniusAccessToken.trim()) return;
+        setTestingGenius(true);
+        setMessage(null);
+        try {
+            const res = await fetch(`${API_BASE}/settings/test-genius-credentials`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ access_token: geniusAccessToken })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setMessage({ type: 'success', text: data.message });
+            } else {
+                setMessage({ type: 'error', text: data.detail || 'Test failed' });
+            }
+        } catch {
+            setMessage({ type: 'error', text: 'Connection error.' });
+        } finally {
+            setTestingGenius(false);
         }
     };
 
@@ -308,8 +342,8 @@ const SettingsView = () => {
                                 key={tab.id}
                                 onClick={() => { setActiveTab(tab.id); setMessage(null); }}
                                 className={`pb-3 text-sm font-medium transition-colors relative ${activeTab === tab.id
-                                        ? 'text-google-gold'
-                                        : 'text-google-text-secondary hover:text-google-text'
+                                    ? 'text-google-gold'
+                                    : 'text-google-text-secondary hover:text-google-text'
                                     }`}
                             >
                                 {tab.label}
@@ -407,36 +441,77 @@ const SettingsView = () => {
                             </div>
 
                             <div className="mt-6 space-y-4">
-                                <KeyStatus status={geniusStatus} onDelete={handleDeleteGenius} deleting={deleting} name="Genius Key" />
+                                <CredentialsStatus status={geniusStatus} onDelete={handleDeleteGenius} deleting={deleting} name="Genius Credentials" />
 
-                                <div className="relative">
-                                    <input
-                                        type={showGeniusKey ? 'text' : 'password'}
-                                        value={geniusKey}
-                                        onChange={(e) => setGeniusKey(e.target.value)}
-                                        placeholder="Paste Genius Access Token"
-                                        className="w-full bg-google-surface-high border-none rounded-xl px-4 py-4 pr-12 text-sm text-google-text placeholder-google-text-secondary/50 focus:ring-2 focus:ring-[#FFFF64] focus:ring-opacity-50 focus:outline-none transition-all"
-                                    />
-                                    <button
-                                        onClick={() => setShowGeniusKey(!showGeniusKey)}
-                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-google-text-secondary hover:text-google-text p-1"
-                                    >
-                                        {showGeniusKey ? <EyeIcon /> : <EyeOffIcon />}
-                                    </button>
+                                <div className="space-y-3">
+                                    <div className="relative">
+                                        <input
+                                            type={showGeniusClientId ? 'text' : 'password'}
+                                            value={geniusClientId}
+                                            onChange={(e) => setGeniusClientId(e.target.value)}
+                                            placeholder="Genius Client ID"
+                                            className="w-full bg-google-surface-high border-none rounded-xl px-4 py-4 pr-12 text-sm text-google-text placeholder-google-text-secondary/50 focus:ring-2 focus:ring-[#FFFF64] focus:ring-opacity-50 focus:outline-none transition-all"
+                                        />
+                                        <button
+                                            onClick={() => setShowGeniusClientId(!showGeniusClientId)}
+                                            className="absolute right-4 top-1/2 -translate-y-1/2 text-google-text-secondary hover:text-google-text p-1"
+                                        >
+                                            {showGeniusClientId ? <EyeIcon /> : <EyeOffIcon />}
+                                        </button>
+                                    </div>
+
+                                    <div className="relative">
+                                        <input
+                                            type={showGeniusClientSecret ? 'text' : 'password'}
+                                            value={geniusClientSecret}
+                                            onChange={(e) => setGeniusClientSecret(e.target.value)}
+                                            placeholder="Genius Client Secret"
+                                            className="w-full bg-google-surface-high border-none rounded-xl px-4 py-4 pr-12 text-sm text-google-text placeholder-google-text-secondary/50 focus:ring-2 focus:ring-[#FFFF64] focus:ring-opacity-50 focus:outline-none transition-all"
+                                        />
+                                        <button
+                                            onClick={() => setShowGeniusClientSecret(!showGeniusClientSecret)}
+                                            className="absolute right-4 top-1/2 -translate-y-1/2 text-google-text-secondary hover:text-google-text p-1"
+                                        >
+                                            {showGeniusClientSecret ? <EyeIcon /> : <EyeOffIcon />}
+                                        </button>
+                                    </div>
+
+                                    <div className="relative">
+                                        <input
+                                            type={showGeniusAccessToken ? 'text' : 'password'}
+                                            value={geniusAccessToken}
+                                            onChange={(e) => setGeniusAccessToken(e.target.value)}
+                                            placeholder="Genius Client Access Token"
+                                            className="w-full bg-google-surface-high border-none rounded-xl px-4 py-4 pr-12 text-sm text-google-text placeholder-google-text-secondary/50 focus:ring-2 focus:ring-[#FFFF64] focus:ring-opacity-50 focus:outline-none transition-all"
+                                        />
+                                        <button
+                                            onClick={() => setShowGeniusAccessToken(!showGeniusAccessToken)}
+                                            className="absolute right-4 top-1/2 -translate-y-1/2 text-google-text-secondary hover:text-google-text p-1"
+                                        >
+                                            {showGeniusAccessToken ? <EyeIcon /> : <EyeOffIcon />}
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <div className="flex gap-3 pt-2">
                                     <button
                                         onClick={handleSaveGenius}
-                                        disabled={saving || !geniusKey.trim()}
+                                        disabled={saving || (!geniusClientId.trim() && !geniusClientSecret.trim() && !geniusAccessToken.trim())}
                                         className="flex-1 py-3 px-6 rounded-full bg-[#FFFF64] text-black text-sm font-semibold hover:bg-[#FFFF64]/90 transition-colors shadow-lg shadow-black/20 disabled:opacity-50"
                                     >
-                                        {saving ? 'Saving...' : 'Save Genius Key'}
+                                        {saving ? 'Saving...' : 'Save Genius Credentials'}
+                                    </button>
+                                    <button
+                                        onClick={handleTestGeniusKey}
+                                        disabled={testingGenius || !geniusAccessToken.trim()}
+                                        className="py-3 px-6 rounded-full border border-google-surface-high text-google-text text-sm font-medium hover:bg-google-surface-high transition-colors disabled:opacity-50"
+                                    >
+                                        {testingGenius ? 'Testing...' : 'Test'}
                                     </button>
                                 </div>
 
                                 <a href="https://genius.com/api-clients" target="_blank" rel="noopener noreferrer" className="inline-block text-xs font-medium text-[#FFFF64] hover:text-[#FFFF64]/80 mt-2">
-                                    Get a Genius Access Token &rarr;
+                                    Manage Genius API Clients &rarr;
                                 </a>
                             </div>
                         </section>
@@ -533,10 +608,10 @@ const SettingsView = () => {
                                                     </span>
                                                     {model.lifecycle && (
                                                         <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${model.lifecycle === 'preview'
-                                                                ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
-                                                                : model.lifecycle === 'deprecated'
-                                                                    ? 'bg-red-500/10 text-red-300 border-red-500/20'
-                                                                    : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+                                                            ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                                                            : model.lifecycle === 'deprecated'
+                                                                ? 'bg-red-500/10 text-red-300 border-red-500/20'
+                                                                : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
                                                             }`}>
                                                             {model.lifecycle}
                                                         </span>
@@ -607,7 +682,7 @@ const SettingsView = () => {
                 )}
 
                 <div className="text-center pt-8 pb-4">
-                    <p className="text-xs text-google-text-secondary opacity-50">LyricVault v0.4.2 &bull; Designed for Pixel</p>
+                    <p className="text-xs text-google-text-secondary opacity-50">LyricVault v0.4.3 &bull; Designed by McEveritts</p>
                 </div>
             </main>
         </>
@@ -638,6 +713,39 @@ const KeyStatus = ({ status, onDelete, deleting, name }) => {
                 >
                     {deleting ? 'Removing...' : 'Remove'}
                 </button>
+            )}
+        </div>
+    );
+};
+
+const CredentialsStatus = ({ status, onDelete, deleting, name }) => {
+    if (!status) return null;
+    return (
+        <div className={`flex flex-col gap-2 p-5 rounded-2xl border ${status.configured
+            ? 'bg-google-surface-high/50 border-google-surface-high'
+            : 'bg-amber-500/5 border-amber-500/10'
+            }`}>
+            <div className="flex items-center gap-3">
+                <div className={`w-2 h-2 rounded-full ${status.configured ? 'bg-green-400' : 'bg-amber-500'}`}></div>
+                <p className={`text-sm font-medium flex-1 ${status.configured ? 'text-green-200' : 'text-amber-200'}`}>
+                    {status.configured ? `${name} Active` : `No ${name} Configured`}
+                </p>
+                {status.configured && (
+                    <button
+                        onClick={onDelete}
+                        disabled={deleting}
+                        className="text-xs text-red-300 hover:text-red-200 px-3 py-1 rounded-full hover:bg-red-500/10 transition-colors"
+                    >
+                        {deleting ? 'Removing...' : 'Remove'}
+                    </button>
+                )}
+            </div>
+            {status.configured && (
+                <div className="grid grid-cols-1 gap-1 pl-5">
+                    {status.client_id && <p className="text-[10px] text-google-text-secondary font-mono truncate">ID: {status.client_id}</p>}
+                    {status.client_secret && <p className="text-[10px] text-google-text-secondary font-mono truncate">Secret: {status.client_secret}</p>}
+                    {status.access_token && <p className="text-[10px] text-google-text-secondary font-mono truncate">Token: {status.access_token}</p>}
+                </div>
             )}
         </div>
     );

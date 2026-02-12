@@ -2,6 +2,28 @@
 
 All notable changes to the LyricVault project will be documented in this file.
 
+## [0.4.3] - 2026-02-12
+
+### Added
+
+- Lightweight Genius token validation endpoint: `POST /settings/test-genius-key` (alias: `/settings/test-genius-credentials`).
+- In-app Genius "Test" action with async status feedback in Settings.
+- Lyric click-to-seek interaction for synced lines in `LyricsOverlay`.
+
+### Changed
+
+- Branding footer text updated to "Designed by McEveritts".
+- Sidebar collapse toggle moved into the sidebar header region.
+- Integrated Queue redesigned as a docked expansion of the Now Playing bar.
+- Aura visualizer upgraded from legacy bars to fluid motion-blur wave rendering with premium overlay.
+- Frontend Genius credential UX refined for multi-field persistence and test flow.
+- Version surfaces and release metadata bumped from `0.4.2` to `0.4.3`.
+
+### Fixed
+
+- Library sort dropdown clipping by increasing overlay z-index.
+- White-box flash during tab/view transitions by preserving dark background continuity.
+
 ## [0.4.2] - 2026-02-12
 
 ### Added

@@ -5,20 +5,32 @@ const Sidebar = ({ activeTab, onTabChange, isCollapsed, onToggleCollapse }) => {
     return (
         <aside className={`${isCollapsed ? 'w-20' : 'w-72'} h-screen sticky top-0 bg-google-surface/60 backdrop-blur-xl border-r border-white/5 flex flex-col transition-all duration-300 z-40`}>
             {/* Logo Area */}
-            <div className={`flex items-center ${isCollapsed ? 'justify-center px-0' : 'gap-4 px-6'} py-6 mb-2 transition-all duration-300`}>
-                <div className="w-10 h-10 relative group cursor-pointer flex-shrink-0" onClick={onToggleCollapse}>
-                    {/* Subtle Gold Rotation Effect */}
-                    <div className="absolute inset-0 bg-google-gold/20 rounded-xl rotate-6 group-hover:rotate-12 transition-transform duration-500 blur-sm"></div>
-                    <div className="relative w-full h-full bg-google-surface-high border border-white/10 rounded-xl flex items-center justify-center overflow-hidden shadow-lg p-1.5">
-                        <img src={logo} alt="LyricVault Logo" className="w-full h-full object-contain" />
+            <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between px-6'} py-6 mb-2 transition-all duration-300`}>
+                <div className="flex items-center gap-4 min-w-0">
+                    <div className="w-10 h-10 relative group cursor-pointer flex-shrink-0" onClick={onToggleCollapse}>
+                        {/* Subtle Gold Rotation Effect */}
+                        <div className="absolute inset-0 bg-google-gold/20 rounded-xl rotate-6 group-hover:rotate-12 transition-transform duration-500 blur-sm"></div>
+                        <div className="relative w-full h-full bg-google-surface-high border border-white/10 rounded-xl flex items-center justify-center overflow-hidden shadow-lg p-1.5">
+                            <img src={logo} alt="LyricVault Logo" className="w-full h-full object-contain" />
+                        </div>
                     </div>
+                    {!isCollapsed && (
+                        <div className="overflow-hidden whitespace-nowrap">
+                            <h1 className="text-xl font-bold text-google-text tracking-wide font-sans">
+                                LYRIC<span className="text-google-gold">VAULT</span>
+                            </h1>
+                        </div>
+                    )}
                 </div>
+
                 {!isCollapsed && (
-                    <div className="overflow-hidden whitespace-nowrap">
-                        <h1 className="text-xl font-bold text-google-text tracking-wide font-sans">
-                            LYRIC<span className="text-google-gold">VAULT</span>
-                        </h1>
-                    </div>
+                    <button
+                        onClick={onToggleCollapse}
+                        className="p-2 rounded-xl text-google-text-secondary hover:text-google-text hover:bg-white/5 transition-all group"
+                        title="Collapse Sidebar"
+                    >
+                        <Icon name="minimize" className="w-5 h-5 transition-transform group-hover:scale-110" />
+                    </button>
                 )}
             </div>
 
@@ -96,17 +108,8 @@ const Sidebar = ({ activeTab, onTabChange, isCollapsed, onToggleCollapse }) => {
                 />
             </nav>
 
-            {/* Toggle Button (Hamburger-ish) */}
-            <div className="px-3 pb-4">
-                <button
-                    onClick={onToggleCollapse}
-                    className={`w-full flex items-center justify-center p-3 rounded-xl text-google-text-secondary hover:text-google-text hover:bg-white/5 transition-colors ${!isCollapsed ? 'justify-start gap-4 px-4' : ''}`}
-                    title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-                >
-                    <Icon name={isCollapsed ? "maximize" : "minimize"} className="w-5 h-5" />
-                    {!isCollapsed && <span className="text-sm">Collapse</span>}
-                </button>
-            </div>
+            {/* Spacer */}
+            <div className="flex-1" />
 
 
             {/* User Profile / Status */}

@@ -418,7 +418,7 @@ export default function App() {
       />
 
       {/* Main Content */}
-      <div className={`flex-1 flex flex-col h-screen overflow-hidden relative z-10 transition-all duration-300 ${isSidebarCollapsed ? 'w-[calc(100%-80px)]' : 'w-full'}`}>
+      <div className={`flex-1 flex flex-col h-screen overflow-hidden relative z-10 bg-google-bg transition-all duration-300 ${isSidebarCollapsed ? 'w-[calc(100%-80px)]' : 'w-full'}`}>
         <div className="flex-1 overflow-y-auto pb-32 scroll-smooth w-full" ref={scrollRef} onScroll={handleScroll}>
           {renderContent()}
         </div>
@@ -480,6 +480,7 @@ export default function App() {
         isOpen={showLyrics}
         onClose={() => setShowLyrics(false)}
         currentTime={currentTime}
+        onSeek={handleSeek}
       />
     </div>
   );

@@ -59,7 +59,7 @@ async def lifespan(app: FastAPI):
         worker.stop()
 
 
-app = FastAPI(title="LyricVault API", version="0.4.2", lifespan=lifespan)
+app = FastAPI(title="LyricVault API", version="0.4.3", lifespan=lifespan)
 DEFAULT_BACKEND_PORT = 8000
 
 # Mount downloads directory
@@ -113,6 +113,11 @@ class JobResponse(BaseModel):
 
 class ApiKeyRequest(BaseModel):
     api_key: str
+
+class GeniusCredentialsRequest(BaseModel):
+    client_id: str | None = None
+    client_secret: str | None = None
+    access_token: str | None = None
 
 class ModelRequest(BaseModel):
     model_id: str
@@ -635,34 +640,55 @@ def test_gemini_key(request: ApiKeyRequest):
     else:
         raise HTTPException(status_code=400, detail="Invalid API key")
 
-@app.get("/settings/genius-key")
-def get_genius_key_status():
-    key = settings_service.get_genius_api_key()
-    if key:
-        masked = key[:4] + "*" * (max(0, len(key) - 8)) + key[-4:] if len(key) > 8 else "****"
-        return {"configured": True, "masked_key": masked}
-    return {"configured": False, "masked_key": None}
+@app.get("/settings/genius-credentials")
+def get_genius_credentials():
+    creds = settings_service.get_genius_credentials()
+    # Mask values
+    def mask(v):
+        if not v: return None
+        return v[:4] + "*" * (max(0, len(v) - 8)) + v[-4:] if len(v) > 8 else "****"
+    
+    return {
+        "client_id": mask(creds["client_id"]),
+        "client_secret": mask(creds["client_secret"]),
+        "access_token": mask(creds["access_token"]),
+        "configured": any(creds.values())
+    }
 
-@app.post("/settings/genius-key")
-def save_genius_key(request: ApiKeyRequest):
-    key = request.api_key.strip()
-    if not key:
-        raise HTTPException(status_code=400, detail="API key cannot be empty")
-    # Genius keys are typically 64 chars alphanumeric, but we'll just check non-empty
+@app.post("/settings/genius-credentials")
+def save_genius_credentials(request: GeniusCredentialsRequest):
     try:
-        settings_service.set_genius_api_key(key)
+        settings_service.set_genius_credentials(
+            client_id=request.client_id,
+            client_secret=request.client_secret,
+            access_token=request.access_token
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save API key: {e}")
-    # Force reload of lyricist service if needed (currently it reads env/settings on demand)
-    return {"status": "saved", "message": "Genius API key saved successfully"}
+        raise HTTPException(status_code=500, detail=f"Failed to save Genius credentials: {e}")
+    return {"status": "saved", "message": "Genius credentials saved successfully"}
 
-@app.delete("/settings/genius-key")
-def delete_genius_key():
+@app.delete("/settings/genius-credentials")
+def delete_genius_credentials():
     try:
-        settings_service.delete_genius_api_key()
+        settings_service.delete_genius_credentials()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to remove API key: {e}")
-    return {"status": "deleted", "message": "API key removed"}
+        raise HTTPException(status_code=500, detail=f"Failed to remove Genius credentials: {e}")
+    return {"status": "deleted", "message": "Genius credentials removed"}
+
+@app.post("/settings/test-genius-key")
+@app.post("/settings/test-genius-credentials")
+def test_genius_credentials(request: GeniusCredentialsRequest):
+    # For testing, we primarily validate the access token if provided, 
+    # or just check if we have enough to attempt a lyrics search.
+    token = request.access_token or settings_service.get_genius_credentials()["access_token"]
+    if not token:
+        raise HTTPException(status_code=400, detail="No access token provided for testing")
+    
+    is_valid = lyricist.validate_genius_token(token)
+    if is_valid:
+        return {"status": "success", "message": "Genius token is valid!"}
+    else:
+        raise HTTPException(status_code=400, detail="Invalid Genius token")
 
 
 @app.get("/settings/lyrics-mode")
@@ -708,7 +734,7 @@ def trigger_ytdlp_update(db: Session = Depends(get_db)):
 
 @app.get("/")
 def read_root():
-    return {"message": "LyricVault Backend v0.4.2 is running"}
+    return {"message": "LyricVault Backend v0.4.3 is running"}
 
 def resolve_backend_port() -> int:
     raw = os.getenv("LYRICVAULT_BACKEND_PORT")

@@ -86,7 +86,7 @@ const LibraryGrid = ({ refreshTrigger, rehydratingSongIds = [], onPlay, onQueueN
         <div className="space-y-8 animate-in fade-in duration-700">
             {/* Library Header / Controls - Only shown when NOT recentOnly */}
             {!recentOnly && (
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-google-surface/40 p-3 rounded-[2rem] border border-white/5 backdrop-blur-xl pl-6">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-google-surface/40 p-3 rounded-[2rem] border border-white/5 backdrop-blur-xl pl-6 relative z-30">
                     <div className="relative flex-1 max-w-md group">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-google-text-secondary pointer-events-none group-focus-within:text-google-gold transition-colors">
                             <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clipRule="evenodd" />
@@ -100,7 +100,7 @@ const LibraryGrid = ({ refreshTrigger, rehydratingSongIds = [], onPlay, onQueueN
                         />
                     </div>
 
-                    <div className="flex items-center gap-3 relative z-20">
+                    <div className="flex items-center gap-3 relative z-[45]">
                         <span className="text-xs font-bold text-google-text-secondary uppercase tracking-widest opacity-60">Sort By</span>
                         <div className="relative">
                             <button

@@ -127,6 +127,10 @@ class LyricistService:
     
     def _try_syncedlyrics(self, track_name: str, artist_name: str, status_callback=None) -> str | None:
         """Try multiple search variations with syncedlyrics"""
+        from . import settings_service
+        # Ensure environment variables (GENIUS_ACCESS_TOKEN) are populated from settings
+        settings_service.get_genius_credentials()
+        
         self._last_syncedlyrics_reason = "not_found"
         search_terms = [
             f"{track_name} {artist_name}",
@@ -179,5 +183,17 @@ class LyricistService:
         lyrics = gemini_service.transcribe_audio(file_path, track_name, artist_name, status_callback, model_id=model_id)
         self._last_gemini_transcription_reason = gemini_service.get_last_failure_reason() or "not_found"
         return lyrics
+
+    def validate_genius_token(self, token: str) -> bool:
+        """Lightweight validation for Genius Access Token."""
+        if not token or len(token) < 20:
+            return False
+        try:
+            import requests
+            headers = {"Authorization": f"Bearer {token}"}
+            res = requests.get("https://api.genius.com/account", headers=headers, timeout=5)
+            return res.status_code == 200
+        except Exception:
+            return False
 
 lyricist = LyricistService()

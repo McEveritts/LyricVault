@@ -1,5 +1,5 @@
 param(
-    [string]$ChecksumsFile = "release_checksums_v0.4.2.txt"
+    [string]$ChecksumsFile = "release_checksums_v0.4.3.txt"
 )
 
 $ErrorActionPreference = "Stop"

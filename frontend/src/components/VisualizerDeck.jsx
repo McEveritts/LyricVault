@@ -3,13 +3,6 @@ import React, { useEffect, useRef } from 'react';
 const VisualizerDeck = ({ analyser, isPlaying, onClose, currentSong }) => {
     const canvasRef = useRef(null);
     const requestRef = useRef();
-    const particlesRef = useRef([]);
-    const beatStateRef = useRef({
-        shortEMA: 0,
-        longEMA: 0,
-        lastBeat: 0,
-        pulseValue: 0
-    });
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -18,19 +11,6 @@ const VisualizerDeck = ({ analyser, isPlaying, onClose, currentSong }) => {
         const ctx = canvas.getContext('2d');
         let width = canvas.width = window.innerWidth;
         let height = canvas.height = window.innerHeight;
-        beatStateRef.current = { shortEMA: 0, longEMA: 0, lastBeat: 0, pulseValue: 0 };
-
-        let prefersReducedMotion = false;
-        const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-        const handleReducedMotionChange = () => {
-            prefersReducedMotion = reducedMotionQuery.matches;
-        };
-        handleReducedMotionChange();
-        if (typeof reducedMotionQuery.addEventListener === 'function') {
-            reducedMotionQuery.addEventListener('change', handleReducedMotionChange);
-        } else if (typeof reducedMotionQuery.addListener === 'function') {
-            reducedMotionQuery.addListener(handleReducedMotionChange);
-        }
 
         // Handle resize
         const handleResize = () => {
@@ -41,167 +21,91 @@ const VisualizerDeck = ({ analyser, isPlaying, onClose, currentSong }) => {
 
         const bufferLength = analyser.frequencyBinCount;
         const dataArray = new Uint8Array(bufferLength);
-        const sampleRate = analyser.context?.sampleRate || 44100;
-        const binHz = sampleRate / analyser.fftSize;
-        const bassStartBin = Math.max(0, Math.floor(20 / binHz));
-        const bassEndBin = Math.min(bufferLength - 1, Math.ceil(150 / binHz));
-        const bassBinCount = Math.max(1, bassEndBin - bassStartBin + 1);
 
-        // Particle system setup
-        if (particlesRef.current.length === 0) {
-            for (let i = 0; i < 50; i++) {
-                particlesRef.current.push({
-                    x: Math.random() * width,
-                    y: Math.random() * height,
-                    vx: (Math.random() - 0.5) * 2,
-                    vy: (Math.random() - 0.5) * 2,
-                    size: Math.random() * 3,
-                    alpha: Math.random()
-                });
+        // Quality check for transitions
+        let opacity = 0;
+        const fadeIn = () => {
+            if (opacity < 1) {
+                opacity += 0.02;
+                setTimeout(fadeIn, 16);
             }
-        }
+        };
+        fadeIn();
 
         const draw = () => {
             requestRef.current = requestAnimationFrame(draw);
-
             analyser.getByteFrequencyData(dataArray);
 
-            // 1. Beat Detection Logic (Focused on Bass 20-150Hz)
-            let currentBassSum = 0;
-            for (let i = bassStartBin; i <= bassEndBin; i++) {
-                currentBassSum += dataArray[i];
-            }
-            const currentBassAvg = currentBassSum / bassBinCount;
-
-            // EMA Smoothing
-            const state = beatStateRef.current;
-            state.shortEMA = state.shortEMA * 0.7 + currentBassAvg * 0.3;
-            state.longEMA = state.longEMA * 0.98 + currentBassAvg * 0.02;
-
-            // Detect Beat (Short-term spike > Long-term average * threshold)
-            const now = Date.now();
-            const threshold = Math.max(state.longEMA * 1.3, 30); // Dynamic threshold with noise floor
-
-            if (state.shortEMA > threshold && now - state.lastBeat > 250) {
-                state.lastBeat = now;
-                state.pulseValue = 1.0; // Trigger full pulse
-            }
-
-            // Pulse Decay (Exponential)
-            state.pulseValue *= 0.92;
-            if (state.pulseValue < 0.01) state.pulseValue = 0;
-
-            // 2. Global "Boost" for general reactivity
-            let sum = 0;
-            for (let i = 0; i < bufferLength; i++) {
-                sum += dataArray[i];
-            }
-            const average = sum / bufferLength;
-            const boost = average / 255;
-
-            // Apply reduced-motion preference without per-frame media query calls.
-            const effectivePulse = prefersReducedMotion ? state.pulseValue * 0.2 : state.pulseValue;
-
-            // Background with beat pulse (classic iTunes dark bloom)
-            const pulseSize = Math.max(0, width * (0.5 + boost * 0.2 + effectivePulse * 0.3));
-            const bgGradient = ctx.createRadialGradient(
-                width / 2, height / 2, 0,
-                width / 2, height / 2, pulseSize
-            );
-            bgGradient.addColorStop(0, `rgba(40, 60, 100, ${0.1 + boost * 0.1 + effectivePulse * 0.3})`);
-            bgGradient.addColorStop(0.6, 'rgba(10, 15, 30, 0.8)');
-            bgGradient.addColorStop(1, 'rgba(0, 0, 0, 1)');
-
-            ctx.fillStyle = bgGradient;
+            // 1. Clear with deep fade
+            ctx.fillStyle = 'rgba(10, 10, 12, 0.15)';
             ctx.fillRect(0, 0, width, height);
 
-            // Draw Particles (Background ambience)
-            particlesRef.current.forEach(p => {
-                p.x += p.vx * (1 + boost + effectivePulse * 3);
-                p.y += p.vy * (1 + boost + effectivePulse * 3);
-
-                if (p.x < 0) p.x = width;
-                if (p.x > width) p.x = 0;
-                if (p.y < 0) p.y = height;
-                if (p.y > height) p.y = 0;
-
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, p.size * (1 + boost + effectivePulse), 0, Math.PI * 2);
-                ctx.fillStyle = `rgba(255, 255, 255, ${p.alpha * (0.3 + effectivePulse * 0.5)})`;
-                ctx.fill();
-            });
-
-            // Spectrum Bars (Mirrored)
-            const barWidth = (width / bufferLength) * 2; // Wider bars
-            const centerX = width / 2;
-            const centerY = height / 2 + 50; // Slightly lower than center
-
-            // Limit the bars we draw to the bass/mid frequencies mostly, top end is often empty
-            const barsToDraw = Math.floor(bufferLength * 0.7);
-
-            for (let i = 0; i < barsToDraw; i++) {
-                const value = dataArray[i];
-                const percent = value / 255;
-                const barHeight = (percent * height * 0.4);
-
-                // Use the Google Gold palette (Hue ~42-54)
-                const hue = 42 + (percent * 12);
-                const sat = 85 + (percent * 10);
-                const light = 45 + (percent * 45);
-
-                const alpha = (0.8 + effectivePulse * 0.2);
-                ctx.fillStyle = `hsla(${hue}, ${sat}%, ${light}%, ${alpha})`;
-
-                // Draw right side
-                // Main bar going UP
-                const xPosRight = centerX + (i * barWidth);
-                const dynamicHeight = barHeight * (1 + effectivePulse * 0.2);
-                ctx.fillRect(xPosRight, centerY - dynamicHeight, barWidth - 1, dynamicHeight);
-
-                // Reflection going DOWN (less opacity)
-                ctx.fillStyle = `hsla(${hue}, ${sat}%, ${light}%, ${alpha * 0.3})`;
-                ctx.fillRect(xPosRight, centerY, barWidth - 1, dynamicHeight * 0.5);
-
-                // Draw left side (Mirror)
-                // Main bar going UP
-                const xPosLeft = centerX - ((i + 1) * barWidth);
-                ctx.fillStyle = `hsla(${hue}, ${sat}%, ${light}%, ${alpha})`;
-                ctx.fillRect(xPosLeft, centerY - dynamicHeight, barWidth - 1, dynamicHeight);
-
-                // Reflection going DOWN
-                ctx.fillStyle = `hsla(${hue}, ${sat}%, ${light}%, ${alpha * 0.3})`;
-                ctx.fillRect(xPosLeft, centerY, barWidth - 1, dynamicHeight * 0.5);
+            // 2. Global "Energy" calculation
+            let energy = 0;
+            const energyRange = Math.floor(bufferLength * 0.4);
+            for (let i = 0; i < energyRange; i++) {
+                energy += dataArray[i];
             }
+            energy /= energyRange;
+            const energyFactor = energy / 255;
 
-            // Floor "Gloss" line
-            ctx.beginPath();
-            ctx.moveTo(0, centerY);
-            ctx.lineTo(width, centerY);
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-            ctx.stroke();
+            // 3. Draw Fluid "Aura" Waves
+            const time = Date.now() * 0.001;
+            const centerY = height / 2;
+
+            // Draw multiple overlapping waves for "fluid" effect
+            const drawWave = (color, amplitude, frequency, offset, thickness) => {
+                ctx.beginPath();
+                ctx.lineWidth = thickness + (energyFactor * 4);
+                ctx.strokeStyle = color;
+
+                for (let x = 0; x <= width; x += 5) {
+                    const normalizedX = x / width;
+                    // Organic noise-like wave combining sine waves
+                    const wave1 = Math.sin(normalizedX * frequency + time + offset);
+                    const wave2 = Math.sin(normalizedX * (frequency * 1.5) - time * 0.8 + offset);
+                    const envelope = Math.sin(normalizedX * Math.PI); // Taper at edges
+
+                    const y = centerY + (wave1 + wave2) * amplitude * envelope * (1 + energyFactor * 2.5);
+
+                    if (x === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            };
+
+            // Deep background glow
+            const glowSize = height * (0.3 + energyFactor * 0.4);
+            const gradient = ctx.createRadialGradient(width / 2, height / 2, 0, width / 2, height / 2, glowSize);
+            gradient.addColorStop(0, `rgba(226, 194, 134, ${0.05 + energyFactor * 0.1})`);
+            gradient.addColorStop(1, 'rgba(10, 10, 12, 0)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, width, height);
+
+            ctx.globalCompositeOperation = 'lighter';
+
+            // The "Aura" - Multiple semi-transparent waves
+            drawWave('rgba(226, 194, 134, 0.4)', height * 0.15, 3, time, 2);
+            drawWave('rgba(255, 255, 255, 0.15)', height * 0.1, 4, time * 1.2, 1);
+            drawWave('rgba(196, 164, 104, 0.2)', height * 0.12, 2.5, time * 0.7, 3);
+            drawWave('rgba(244, 224, 184, 0.1)', height * 0.2, 2, -time * 0.5, 1);
+
+            ctx.globalCompositeOperation = 'source-over';
         };
 
         if (isPlaying) {
             draw();
         } else {
-            // Just clear if stopped, or could draw a static "paused" state
-            ctx.clearRect(0, 0, width, height);
-            ctx.fillStyle = '#000';
+            ctx.fillStyle = '#0a0a0c';
             ctx.fillRect(0, 0, width, height);
         }
 
         return () => {
             window.removeEventListener('resize', handleResize);
-            if (typeof reducedMotionQuery.removeEventListener === 'function') {
-                reducedMotionQuery.removeEventListener('change', handleReducedMotionChange);
-            } else if (typeof reducedMotionQuery.removeListener === 'function') {
-                reducedMotionQuery.removeListener(handleReducedMotionChange);
-            }
             cancelAnimationFrame(requestRef.current);
         };
     }, [analyser, isPlaying]);
 
-    // Keyboard Accessibility (Esc to close)
     useEffect(() => {
         const handleKeyDown = (e) => {
             if (e.key === 'Escape') onClose();
@@ -211,31 +115,37 @@ const VisualizerDeck = ({ analyser, isPlaying, onClose, currentSong }) => {
     }, [onClose]);
 
     return (
-        <div className="fixed inset-0 z-[100] bg-black animate-in fade-in duration-700">
+        <div className="fixed inset-0 z-[100] bg-[#0a0a0c] animate-in fade-in duration-700">
             <canvas ref={canvasRef} className="block w-full h-full" />
 
-            {/* Overlay UI */}
-            <div className="absolute top-0 left-0 w-full p-8 flex justify-between items-start opacity-0 hover:opacity-100 transition-opacity duration-500 bg-gradient-to-b from-black/80 to-transparent">
-                <div className="flex flex-col">
-                    {currentSong && (
-                        <>
-                            <h2 className="text-3xl font-bold text-white tracking-tight drop-shadow-lg">{currentSong.title}</h2>
-                            <p className="text-google-gold text-xl font-medium drop-shadow-md">{currentSong.artist}</p>
-                        </>
-                    )}
+            {/* Premium UI Overlay */}
+            <div className="absolute inset-0 flex flex-col justify-between p-12 pointer-events-none">
+                <div className="flex justify-between items-start pointer-events-auto">
+                    <div className="flex flex-col gap-1">
+                        <span className="text-google-gold text-[10px] font-black uppercase tracking-[0.3em] opacity-60">Now Playing</span>
+                        {currentSong && (
+                            <>
+                                <h2 className="text-5xl font-bold text-white tracking-tighter drop-shadow-2xl">{currentSong.title}</h2>
+                                <p className="text-google-gold/80 text-2xl font-medium tracking-tight mt-1">{currentSong.artist}</p>
+                            </>
+                        )}
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="w-14 h-14 rounded-full bg-white/5 hover:bg-white/10 backdrop-blur-xl flex items-center justify-center text-white transition-all border border-white/10 group active:scale-90"
+                        aria-label="Close Visualizer"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-6 h-6 group-hover:rotate-90 transition-transform">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
                 </div>
-                <button
-                    onClick={onClose}
-                    className="w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md flex items-center justify-center text-white transition-all border border-white/10"
-                    aria-label="Close Visualizer"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-            </div>
 
-            {/* Subtle controls hint if mouse is idle? (Optional, skipping for clean look) */}
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-1.5 h-1.5 rounded-full bg-google-gold animate-ping"></div>
+                    <span className="text-[10px] font-black tracking-[0.4em] text-white/20 uppercase">AURA VISUALIZER ENGINE</span>
+                </div>
+            </div>
         </div>
     );
 };

@@ -120,48 +120,64 @@ def delete_gemini_api_key():
     _save_settings(settings)
 
 
-def get_genius_api_key() -> str | None:
+def get_genius_credentials() -> dict:
     """
-    Retrieve the Genius API key priority:
-    1. User-configured key in settings.json
-    2. GENIUS_ACCESS_TOKEN environment variable
+    Retrieve all Genius credentials from settings or environment.
+    Priority:
+    1. settings.json
+    2. Environment variables (GENIUS_CLIENT_ID, GENIUS_CLIENT_SECRET, GENIUS_ACCESS_TOKEN)
     """
     settings = _load_settings()
-    stored_key = settings.get("genius_api_key")
-    if stored_key:
-        try:
-            key = _normalize_api_key(_deobfuscate(stored_key))
-        except Exception:
-            key = _normalize_api_key(stored_key)
-        
-        if key:
-            # Important: Export to env for syncedlyrics to use automatically
-            os.environ["GENIUS_ACCESS_TOKEN"] = key
-            return key
+    
+    def fetch(key, env_var):
+        stored = settings.get(key)
+        if stored:
+            try:
+                return _normalize_api_key(_deobfuscate(stored))
+            except Exception:
+                return _normalize_api_key(stored)
+        return _normalize_api_key(os.getenv(env_var))
 
-    env_key = _normalize_api_key(os.getenv("GENIUS_ACCESS_TOKEN"))
-    if env_key:
-        return env_key
-    return None
+    creds = {
+        "client_id": fetch("genius_client_id", "GENIUS_CLIENT_ID"),
+        "client_secret": fetch("genius_client_secret", "GENIUS_CLIENT_SECRET"),
+        "access_token": fetch("genius_access_token", "GENIUS_ACCESS_TOKEN"),
+    }
+    
+    # Sync to env for syncedlyrics
+    if creds["access_token"]:
+        os.environ["GENIUS_ACCESS_TOKEN"] = creds["access_token"]
+    
+    return creds
 
 
-def set_genius_api_key(key: str):
-    """Save a Genius API key to persistent settings."""
-    normalized = _normalize_api_key(key)
-    if not normalized:
-        raise ValueError("API key cannot be empty")
+def set_genius_credentials(client_id: str = None, client_secret: str = None, access_token: str = None):
+    """Save Genius credentials to persistent settings."""
     settings = _load_settings()
-    settings["genius_api_key"] = _obfuscate(normalized)
+    
+    if client_id is not None:
+        settings["genius_client_id"] = _obfuscate(client_id.strip())
+    if client_secret is not None:
+        settings["genius_client_secret"] = _obfuscate(client_secret.strip())
+    if access_token is not None:
+        normalized = _normalize_api_key(access_token)
+        if normalized:
+            settings["genius_access_token"] = _obfuscate(normalized)
+            os.environ["GENIUS_ACCESS_TOKEN"] = normalized
+
     _save_settings(settings)
-    # Update env immediately for current process
-    os.environ["GENIUS_ACCESS_TOKEN"] = normalized
 
 
-def delete_genius_api_key():
-    """Remove the stored Genius API key."""
+def delete_genius_credentials():
+    """Remove all stored Genius credentials."""
     settings = _load_settings()
-    settings.pop("genius_api_key", None)
+    settings.pop("genius_client_id", None)
+    settings.pop("genius_client_secret", None)
+    settings.pop("genius_client_access_token", None) # legacy cleanup
+    settings.pop("genius_access_token", None)
+    settings.pop("genius_api_key", None) # legacy cleanup
     _save_settings(settings)
+    
     os.environ.pop("GENIUS_ACCESS_TOKEN", None)
 
 

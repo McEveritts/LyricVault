@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import API_BASE from '../config/api';
 
-const LyricsOverlay = ({ song, isOpen, onClose, currentTime }) => {
+const LyricsOverlay = ({ song, isOpen, onClose, currentTime, onSeek }) => {
     const scrollContainerRef = useRef(null);
     const activeLineRef = useRef(null);
     const [isResearching, setIsResearching] = useState(false);
@@ -173,12 +173,14 @@ const LyricsOverlay = ({ song, isOpen, onClose, currentTime }) => {
                             <p
                                 key={i}
                                 ref={isActive ? activeLineRef : null}
-                                className={`text-3xl md:text-5xl font-bold transition-all duration-700 leading-tight tracking-tight text-left max-w-3xl cursor-default
+                                onClick={() => line.time >= 0 && onSeek && onSeek(line.time)}
+                                className={`text-3xl md:text-5xl font-bold transition-all duration-700 leading-tight tracking-tight text-left max-w-3xl
+                                    ${line.time >= 0 ? 'cursor-pointer hover:text-google-gold/80 hover:translate-x-2' : 'cursor-default'}
                                     ${isActive
                                         ? 'text-white scale-105 origin-left'
                                         : isPast
                                             ? 'text-white/20'
-                                            : 'text-white/40 hover:text-white/60'
+                                            : 'text-white/40'
                                     }`}
                             >
                                 {line.text}

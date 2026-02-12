@@ -1,8 +1,8 @@
-# ![LyricVault Logo](./frontend/public/logo.svg) LyricVault v0.4.2
+# ![LyricVault Logo](./frontend/public/logo.svg) LyricVault v0.4.3
 
 ## The Ultimate Local Music Sanctuary - Powered by AI
 
-[![Version](https://img.shields.io/badge/version-0.4.2-E2C286?style=for-the-badge)](https://github.com/McEveritts/LyricVault)
+[![Version](https://img.shields.io/badge/version-0.4.3-E2C286?style=for-the-badge)](https://github.com/McEveritts/LyricVault)
 [![License: MIT](https://img.shields.io/badge/License-MIT-E2C286?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Build: Portable & Installer](https://img.shields.io/badge/Build-Portable%20%2B%20Installer-2B2D31?style=for-the-badge)](https://github.com/McEveritts/LyricVault/releases)
 
@@ -16,27 +16,27 @@ Instead of relying on streaming metadata that can change over time, LyricVault h
 
 ---
 
-## New in v0.4.2
+## New in v0.4.3
 
-### Lyrics Integrity and Control
-- Added a global strict lyrics mode toggle (`strict_lrc`) in Settings.
-- Strict mode now enforces true timed LRC for `ready` status.
-- Unsynced fallback mode now exposes explicit `unsynced` lyric status.
+### UI and Brand Polish
+- Footer branding now reads "Designed by McEveritts".
+- Sidebar collapse toggle moved into the sidebar header for stronger layout flow.
+- Fixed tab-switch white flash by enforcing dark background continuity.
+- Library sort dropdown z-index increased to prevent clipping.
 
-### Queue and Processing Contracts
-- Active queue now treats `retrying` as a first-class processing state.
-- Processing and Activity views are split by status contract at API source.
-- Startup migration now batches legacy non-LRC songs into controlled lyric regeneration jobs.
+### Playback and Queue Experience
+- Integrated Queue redesigned as a docked extension of the Now Playing bar.
+- Queue reveal now uses fluid expansion/collapse transitions.
+- Lyrics overlay now supports click-to-seek on synced lines with hover feedback.
 
-### Discovery and Social Media
-- Discovery now supports a Social Media bucket with Instagram, TikTok, and Facebook subfilters.
-- Added source tags and best-effort social search guidance.
-- Direct social URLs are the reliable ingest path when keyword extractor support is limited.
+### Visualizer and Overlay
+- Aura visualizer upgraded from block bars to fluid motion-blur wave rendering.
+- Added premium title/artist overlay styling in the visualizer deck.
 
-### UX and Release Hardening
-- Refined Song Detail synced/unsynced lyric presentation and export controls.
-- Updated mini visualizer to a stronger Gold-reactive style.
-- Full version-surface bump and release pipeline updates for `0.4.2`.
+### Backend and Reliability
+- Added lightweight Genius token validation endpoint for in-app Settings testing.
+- Maintained robust worker claim/retry behavior and secure credentials persistence.
+- Confirmed frontend polling and API contracts for background discovery jobs.
 
 ---
 
@@ -59,10 +59,10 @@ Instead of relying on streaming metadata that can change over time, LyricVault h
 Get the latest release artifacts from GitHub Releases or build locally.
 
 Option A (Installer):
-Run `LyricVault Setup 0.4.2.exe`.
+Run `LyricVault Setup 0.4.3.exe`.
 
 Option B (Portable):
-Run `LyricVault 0.4.2.exe`.
+Run `LyricVault 0.4.3.exe`.
 
 ### 2. Configuration
 

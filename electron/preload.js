@@ -7,7 +7,7 @@ const backendPort = Number.parseInt(portFromArg || process.env.LYRICVAULT_BACKEN
 // Expose minimal app info to the renderer
 contextBridge.exposeInMainWorld('lyricvault', {
     platform: process.platform,
-    version: '0.4.2', // Hardcoded to avoid dev-mode resolution issues with require('../package.json')
+    version: '0.4.3', // Hardcoded to avoid dev-mode resolution issues with require('../package.json')
     isDesktop: true,
     backendPort,
     apiBase: `http://127.0.0.1:${backendPort}`,
