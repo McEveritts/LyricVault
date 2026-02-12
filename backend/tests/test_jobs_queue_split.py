@@ -1,6 +1,7 @@
 import sys
 import uuid
 from pathlib import Path
+from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
 
@@ -22,6 +23,7 @@ def _create_job(status: str) -> int:
             title=f"queue-split-{status}",
             idempotency_key=f"queue-split-{status}-{uuid.uuid4().hex}",
             payload='{"song_id": 0}',
+            available_at=datetime.now(timezone.utc) + timedelta(hours=1),
         )
         db.add(job)
         db.commit()

@@ -54,7 +54,7 @@ class Job(Base):
     __tablename__ = "jobs"
 
     id = Column(Integer, primary_key=True, index=True)
-    type = Column(String, index=True) # ingest_audio | generate_lyrics
+    type = Column(String, index=True) # ingest_audio | generate_lyrics | maintenance_update_ytdlp
     status = Column(String, default="pending", index=True) # pending | processing | retrying | completed | failed
     title = Column(String, nullable=True) # For UI visibility
     idempotency_key = Column(String, unique=True, index=True) # e.g. URL or Path hash

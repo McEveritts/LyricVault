@@ -16,7 +16,12 @@ import os
 import time
 from google import genai
 from google.genai import types
-from .settings_service import get_gemini_api_key, get_gemini_model, get_available_models
+from .settings_service import (
+    get_gemini_api_key,
+    get_gemini_model,
+    get_stable_gemini_model,
+    set_gemini_model,
+)
 
 
 # ── Rate limit config ─────────────────────────────────────────────────
@@ -94,6 +99,7 @@ class GeminiService:
         self.client = None
         self._current_key = None
         self._last_validation_error = None
+        self._last_failure_reason = None
         self._initialize()
 
     @property
@@ -131,6 +137,9 @@ class GeminiService:
         if not self.client:
             self._initialize()
         return self.client is not None
+
+    def get_last_failure_reason(self) -> str | None:
+        return self._last_failure_reason
 
     def validate_key(self, api_key: str) -> bool:
         """
@@ -199,6 +208,58 @@ class GeminiService:
                 else:
                     raise last_error
 
+    @staticmethod
+    def _classify_failure_reason(error_text: str) -> str:
+        lowered = (error_text or "").lower()
+        if (
+            "429" in lowered
+            or "resource exhausted" in lowered
+            or "rate limit" in lowered
+            or "quota" in lowered
+        ):
+            return "rate_limited"
+        return "source_unavailable"
+
+    @staticmethod
+    def _is_model_unavailable_error(error_text: str) -> bool:
+        lowered = (error_text or "").lower()
+        return (
+            "model" in lowered
+            and (
+                "not found" in lowered
+                or "not supported" in lowered
+                or "unsupported" in lowered
+                or "deprecated" in lowered
+                or "unavailable" in lowered
+                or "invalid" in lowered
+            )
+        )
+
+    def _call_with_model_fallback(self, call_builder, selected_model: str, status_callback=None):
+        model_in_use = selected_model
+        try:
+            response = self._call_with_retry(lambda: call_builder(model_in_use))
+            return response, model_in_use
+        except Exception as e:
+            error_text = str(e)
+            if not self._is_model_unavailable_error(error_text):
+                raise
+
+            fallback_model = get_stable_gemini_model()
+            if model_in_use == fallback_model:
+                raise
+
+            print(f"[Gemini] Model '{model_in_use}' unavailable. Falling back to '{fallback_model}'.")
+            if status_callback:
+                status_callback(f"Model unavailable. Retrying with {fallback_model}...")
+            try:
+                set_gemini_model(fallback_model)
+            except Exception as persist_error:
+                print(f"[Gemini] Failed to persist fallback model: {persist_error}")
+
+            response = self._call_with_retry(lambda: call_builder(fallback_model))
+            return response, fallback_model
+
     def research_lyrics(self, track_name: str, artist_name: str, status_callback=None, model_id: str | None = None) -> str | None:
         """
         Use Gemini to research and find published lyrics for a song.
@@ -206,6 +267,7 @@ class GeminiService:
         """
         if not self.is_available():
             if status_callback: status_callback("Gemini API key missing")
+            self._last_failure_reason = "source_unavailable"
             return None
 
         # User query only — system role is in LYRICS_RESEARCH_CONFIG
@@ -213,20 +275,21 @@ class GeminiService:
         selected_model = model_id or self.model
 
         try:
-            def _call():
+            def _call(model_name: str):
                 if status_callback: status_callback(f"Researching: {track_name}...")
                 return self.client.models.generate_content(
-                    model=selected_model,
+                    model=model_name,
                     contents=prompt,
                     config=LYRICS_RESEARCH_CONFIG,
                 )
 
-            response = self._call_with_retry(_call)
+            response, _ = self._call_with_model_fallback(_call, selected_model, status_callback=status_callback)
 
             # Check finish_reason before inspecting text
             if response.candidates and response.candidates[0].finish_reason != "STOP":
                 reason = response.candidates[0].finish_reason if response.candidates else "UNKNOWN"
                 print(f"[Gemini] Request filtered/refused (finish_reason={reason}) for {track_name}")
+                self._last_failure_reason = "not_found"
                 return None
 
             result = response.text.strip()
@@ -241,13 +304,16 @@ class GeminiService:
                 ]
                 if any(phrase in result.lower() for phrase in refusal_phrases):
                     print(f"Gemini research: Lyrics not found for {track_name}")
+                    self._last_failure_reason = "not_found"
                     return None
 
             print(f"Gemini research: Found lyrics for {track_name}")
+            self._last_failure_reason = None
             return result
 
         except Exception as e:
             print(f"Gemini research error: {e}")
+            self._last_failure_reason = self._classify_failure_reason(str(e))
             return None
 
     def transcribe_audio(self, audio_file_path: str, track_name: str = None, artist_name: str = None, status_callback=None, model_id: str | None = None) -> str | None:
@@ -256,6 +322,7 @@ class GeminiService:
         """
         if not self.is_available():
             if status_callback: status_callback("Gemini API key missing")
+            self._last_failure_reason = "source_unavailable"
             return None
 
         if not os.path.exists(audio_file_path):
@@ -270,6 +337,7 @@ class GeminiService:
             if file_size_mb > 20:
                 print(f"Audio file too large for inline processing: {file_size_mb:.1f}MB")
                 if status_callback: status_callback(f"Error: Audio too large ({file_size_mb:.1f}MB)")
+                self._last_failure_reason = "source_unavailable"
                 return None
 
             ext = os.path.splitext(audio_file_path)[1].lower()
@@ -297,34 +365,38 @@ class GeminiService:
 
             selected_model = model_id or self.model
 
-            def _call():
+            def _call(model_name: str):
                 if status_callback: status_callback(f"Uploading audio ({file_size_mb:.1f}MB) & Analyzing...")
                 return self.client.models.generate_content(
-                    model=selected_model,
+                    model=model_name,
                     contents=[prompt, audio_part],
                     config=AUDIO_TRANSCRIPTION_CONFIG,
                 )
 
-            response = self._call_with_retry(_call)
+            response, _ = self._call_with_model_fallback(_call, selected_model, status_callback=status_callback)
 
             # Check finish_reason before inspecting text
             if response.candidates and response.candidates[0].finish_reason != "STOP":
                 reason = response.candidates[0].finish_reason if response.candidates else "UNKNOWN"
                 print(f"[Gemini] Transcription filtered (finish_reason={reason}) for {track_name or audio_file_path}")
+                self._last_failure_reason = "not_found"
                 return None
 
             result = response.text.strip()
 
             if "TRANSCRIPTION_FAILED" in result:
                 print(f"Gemini transcription: Could not transcribe {track_name or audio_file_path}")
+                self._last_failure_reason = "not_found"
                 return None
 
             print(f"Gemini transcription: Successfully transcribed {track_name or audio_file_path}")
+            self._last_failure_reason = None
             return result
 
         except Exception as e:
             print(f"Gemini transcription error: {e}")
             if status_callback: status_callback(f"Error: {str(e)[:50]}...")
+            self._last_failure_reason = self._classify_failure_reason(str(e))
             return None
 
 

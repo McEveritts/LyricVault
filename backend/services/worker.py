@@ -10,6 +10,7 @@ from database.database import SessionLocal
 from database import models
 from services.ingestor import ingestor
 from services.lyricist import lyricist
+from services.ytdlp_manager import ytdlp_manager
 from services import settings_service
 from utils.lrc_validator import validate_lrc
 
@@ -43,6 +44,7 @@ class Worker:
         self._audio_extensions = {
             ".mp3", ".m4a", ".wav", ".flac", ".ogg", ".aac", ".opus", ".webm", ".mp4"
         }
+        self.ytdlp_check_interval = timedelta(hours=24)
 
     def start(self):
         if self._thread and self._thread.is_alive():
@@ -118,9 +120,11 @@ class Worker:
     def _cleanup_loop(self):
         # Run once at startup, then every cleanup interval.
         self._cleanup_cached_audio()
+        self._check_auto_maintenance()
         while not self._stop_event.wait(self.cleanup_interval_seconds):
             try:
                 self._cleanup_cached_audio()
+                self._check_auto_maintenance()
             except Exception as e:
                 logger.error(f"Audio cleanup loop error: {e}", exc_info=True)
 
@@ -285,6 +289,54 @@ class Worker:
         finally:
             db.close()
 
+    def _check_auto_maintenance(self):
+        """Periodically check if yt-dlp needs an update."""
+        try:
+            state = settings_service.get_ytdlp_state()
+            last_checked = state.get("last_checked_at")
+            should_update = False
+            now = datetime.now(timezone.utc)
+
+            if not last_checked:
+                should_update = True
+            else:
+                try:
+                    last_dt = datetime.fromisoformat(last_checked)
+                    # Handle legacy timestamps without execution
+                    if last_dt.tzinfo is None:
+                        last_dt = last_dt.replace(tzinfo=timezone.utc)
+                    
+                    if (now - last_dt) > self.ytdlp_check_interval:
+                        should_update = True
+                except ValueError:
+                    should_update = True
+
+            if should_update:
+                db = SessionLocal()
+                try:
+                    idempotency_key = "maintenance_update_ytdlp"
+                    existing = db.query(models.Job).filter(
+                        models.Job.idempotency_key == idempotency_key,
+                        models.Job.status.in_(["pending", "processing", "retrying"])
+                    ).first()
+
+                    if not existing:
+                        payload = {"requested_at": now.isoformat(), "auto_trigger": True}
+                        job = models.Job(
+                            type="maintenance_update_ytdlp",
+                            title="Auto-Maintenance: Update yt-dlp",
+                            status="pending",
+                            idempotency_key=idempotency_key,
+                            payload=json.dumps(payload),
+                        )
+                        db.add(job)
+                        db.commit()
+                        logger.info("Enqueued auto-maintenance yt-dlp update job.")
+                finally:
+                    db.close()
+        except Exception as e:
+            logger.error(f"Auto-maintenance check failed: {e}")
+
     def _process_one_job(self) -> bool:
         db = SessionLocal()
         try:
@@ -346,6 +398,8 @@ class Worker:
                     self._handle_ingest(db, job, payload)
                 elif job.type == "generate_lyrics":
                     self._handle_lyrics(db, job, payload)
+                elif job.type == "maintenance_update_ytdlp":
+                    self._handle_ytdlp_update(db, job, payload)
                 else:
                     raise ValueError(f"Unknown job type: {job.type}")
 
@@ -490,12 +544,12 @@ class Worker:
         if not job.title and title:
             job.title = f"Lyrics: {artist or 'Unknown'} - {title}"
             db.commit()
-
         strict_lrc = settings_service.get_strict_lrc_mode()
 
         lyrics = None
         source = "unknown"
         is_synced = False
+        failure_reason = None
 
         if mode == "transcribe":
             if not file_path or not os.path.exists(file_path):
@@ -503,31 +557,40 @@ class Worker:
             lyrics = lyricist._try_gemini_transcription(file_path, title, artist, model_id=model_id)
             source = "gemini_transcription"
             is_synced = bool(lyrics and validate_lrc(lyrics))
+            if not lyrics:
+                failure_reason = lyricist._last_gemini_transcription_reason
         elif mode == "research":
             lyrics = lyricist._try_gemini_research(title, artist, model_id=model_id)
             source = "gemini_research"
             is_synced = bool(lyrics and validate_lrc(lyrics))
+            if not lyrics:
+                failure_reason = lyricist._last_gemini_research_reason
         elif model_id:
             # Respect explicit model selection when manually queued.
             lyrics = lyricist._try_gemini_research(title, artist, model_id=model_id)
             source = "gemini_research"
             is_synced = bool(lyrics and validate_lrc(lyrics))
+            if not lyrics:
+                failure_reason = lyricist._last_gemini_research_reason
             if not lyrics and file_path and os.path.exists(file_path):
                 lyrics = lyricist._try_gemini_transcription(file_path, title, artist, model_id=model_id)
                 source = "gemini_transcription"
                 is_synced = bool(lyrics and validate_lrc(lyrics))
+                if not lyrics:
+                    failure_reason = lyricist._last_gemini_transcription_reason
         else:
             outcome = lyricist.transcribe(title, artist, file_path)
             if isinstance(outcome, dict):
                 lyrics = outcome.get("lyrics")
                 source = outcome.get("source", "auto")
                 is_synced = bool(outcome.get("is_synced"))
+                failure_reason = outcome.get("failure_reason")
             elif isinstance(outcome, str):
                 # Backward-compatible fallback
                 lyrics = outcome
                 source = "auto"
                 is_synced = validate_lrc(lyrics)
-        
+
         song = db.get(models.Song, song_id)
         if song:
             existing_synced = bool(song.lyrics_synced and song.lyrics and validate_lrc(song.lyrics))
@@ -542,11 +605,29 @@ class Worker:
             else:
                 if existing_synced:
                     # Preserve previously valid synced lyrics on failed retries.
-                    job.result_json = json.dumps({"status": "kept_existing_synced", "synced": True})
+                    job.result_json = json.dumps({
+                        "status": "kept_existing_synced",
+                        "synced": True,
+                        "failure_reason": failure_reason or "not_found",
+                    })
                 else:
                     song.lyrics = "Lyrics not found."
                     song.lyrics_synced = False
-                    job.result_json = json.dumps({"status": "not_found", "synced": False})
+                    job.result_json = json.dumps({
+                        "status": "not_found",
+                        "synced": False,
+                        "failure_reason": failure_reason or "not_found",
+                    })
             db.commit()
+
+    def _handle_ytdlp_update(self, db: Session, job: models.Job, payload: dict):
+        job.progress = 10
+        db.commit()
+
+        update_result = ytdlp_manager.update_with_rollback()
+
+        job.progress = 100
+        job.result_json = json.dumps(update_result)
+        db.commit()
 
 worker = Worker()

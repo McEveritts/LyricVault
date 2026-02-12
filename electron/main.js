@@ -2,6 +2,7 @@ const { app, BrowserWindow, dialog } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 const http = require('http');
+const net = require('net');
 
 // Paths
 const isDev = !app.isPackaged;
@@ -42,13 +43,42 @@ function getWindowIconPath() {
 
 // Backend process
 let backendProcess = null;
+let backendPort = 8000;
 
-function startBackend() {
+function buildBackendBase(port) {
+    return `http://127.0.0.1:${port}`;
+}
+
+function canListenOnPort(port) {
+    return new Promise((resolve) => {
+        const server = net.createServer();
+        server.unref();
+        server.once('error', () => resolve(false));
+        server.listen(port, '127.0.0.1', () => {
+            server.close(() => resolve(true));
+        });
+    });
+}
+
+async function findAvailablePort(preferredPort = 8000, maxAttempts = 100) {
+    for (let offset = 0; offset < maxAttempts; offset += 1) {
+        const candidate = preferredPort + offset;
+        // eslint-disable-next-line no-await-in-loop
+        if (await canListenOnPort(candidate)) {
+            return candidate;
+        }
+    }
+    throw new Error(`No available backend port found starting at ${preferredPort}`);
+}
+
+function startBackend(port) {
     const pythonPath = getPythonPath();
     const backendScript = getBackendPath();
     const backendDir = path.dirname(backendScript);
 
     const env = { ...process.env };
+    env.LYRICVAULT_BACKEND_PORT = String(port);
+    process.env.LYRICVAULT_BACKEND_PORT = String(port);
 
     // Set ffmpeg path for packaged app
     const ffmpegDir = getFfmpegDir();
@@ -62,7 +92,7 @@ function startBackend() {
         }
     }
 
-    console.log(`Starting backend: ${pythonPath} ${backendScript}`);
+    console.log(`Starting backend on port ${port}: ${pythonPath} ${backendScript}`);
 
     backendProcess = spawn(pythonPath, [backendScript], {
         cwd: backendDir,
@@ -108,12 +138,13 @@ function stopBackend() {
 }
 
 // Wait for the backend to respond to health checks
-function waitForBackend(maxRetries = 30, interval = 500) {
+function waitForBackend(port, maxRetries = 30, interval = 500) {
     return new Promise((resolve, reject) => {
+        const backendBase = buildBackendBase(port);
         let attempts = 0;
         const check = () => {
             attempts++;
-            const req = http.get('http://localhost:8000/', (res) => {
+            const req = http.get(`${backendBase}/`, (res) => {
                 if (res.statusCode === 200) {
                     resolve();
                 } else {
@@ -154,6 +185,7 @@ function createWindow() {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,
             nodeIntegration: false,
+            additionalArguments: [`--backend-port=${backendPort}`],
         },
         // Frameless with custom titlebar feel
         titleBarStyle: 'default',
@@ -196,13 +228,24 @@ if (!gotLock) {
 }
 
 app.whenReady().then(async () => {
+    try {
+        backendPort = await findAvailablePort(8000, 100);
+    } catch (err) {
+        dialog.showErrorBox(
+            'Startup Error',
+            `Could not find an available backend port.\n\n${err.message}`
+        );
+        app.quit();
+        return;
+    }
+
     // Start the Python backend
-    startBackend();
+    startBackend(backendPort);
 
     try {
         // Wait for backend to be ready (up to 15 seconds)
-        await waitForBackend(30, 500);
-        console.log('Backend is ready!');
+        await waitForBackend(backendPort, 30, 500);
+        console.log(`Backend is ready on port ${backendPort}!`);
     } catch (err) {
         console.error('Backend startup timeout:', err.message);
         dialog.showErrorBox(

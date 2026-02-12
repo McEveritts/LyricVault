@@ -201,6 +201,35 @@ def has_gemini_api_key() -> bool:
     return get_gemini_api_key() is not None
 
 
+def get_ytdlp_state() -> dict:
+    """Read persisted yt-dlp maintenance state."""
+    settings = _load_settings()
+    raw_state = settings.get("ytdlp_state")
+    state = dict(raw_state) if isinstance(raw_state, dict) else {}
+    return {
+        "last_known_good_version": state.get("last_known_good_version"),
+        "last_checked_at": state.get("last_checked_at"),
+        "last_update_status": state.get("last_update_status"),
+        "last_update_error": state.get("last_update_error"),
+        "last_smoke_test_ok": bool(state.get("last_smoke_test_ok", False)),
+    }
+
+
+def set_ytdlp_state(state: dict):
+    """Persist yt-dlp maintenance state."""
+    settings = _load_settings()
+    settings["ytdlp_state"] = dict(state)
+    _save_settings(settings)
+
+
+def update_ytdlp_state(**fields) -> dict:
+    """Patch and persist yt-dlp maintenance state."""
+    state = get_ytdlp_state()
+    state.update(fields)
+    set_ytdlp_state(state)
+    return state
+
+
 # ── Model Selection ───────────────────────────────────────────────────
 
 # Available models with metadata for the UI
@@ -212,6 +241,7 @@ AVAILABLE_MODELS = [
         "description": "Highest quality output — best for complex lyrics",
         "rate_limit": "5 RPM / 200 RPD",
         "tier": "quality",
+        "lifecycle": "preview",
     },
     {
         "id": "gemini-3-flash-preview",
@@ -219,6 +249,7 @@ AVAILABLE_MODELS = [
         "description": "Next-gen speed and efficiency",
         "rate_limit": "15 RPM / 1,500 RPD",
         "tier": "preview",
+        "lifecycle": "preview",
     },
     {
         "id": "gemini-2.5-flash",
@@ -226,6 +257,7 @@ AVAILABLE_MODELS = [
         "description": "Balanced performance and latency",
         "rate_limit": "15 RPM / 1,500 RPD",
         "tier": "fast",
+        "lifecycle": "stable",
     },
     {
         "id": "gemini-2.0-flash",
@@ -233,6 +265,7 @@ AVAILABLE_MODELS = [
         "description": "Stable and reliable — current standard",
         "rate_limit": "15 RPM / 1,500 RPD",
         "tier": "recommended",
+        "lifecycle": "stable",
     },
 ]
 
@@ -242,6 +275,22 @@ DEFAULT_MODEL = "gemini-2.0-flash"
 def get_available_models() -> list[dict]:
     """Return the list of available Gemini models."""
     return AVAILABLE_MODELS
+
+
+def get_model_metadata(model_id: str) -> dict | None:
+    """Return metadata for a known model id."""
+    for model in AVAILABLE_MODELS:
+        if model["id"] == model_id:
+            return model
+    return None
+
+
+def get_stable_gemini_model() -> str:
+    """Return the preferred stable model id."""
+    for model in AVAILABLE_MODELS:
+        if model.get("lifecycle") == "stable":
+            return model["id"]
+    return DEFAULT_MODEL
 
 
 def get_gemini_model() -> str:

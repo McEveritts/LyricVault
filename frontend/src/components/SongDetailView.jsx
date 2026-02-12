@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import API_BASE from '../config/api';
 import Visualizer from './Visualizer';
 
-const SongDetailView = ({ song, isPlaying, onPlayPause, onNext, onPrevious, onSeek, onSongUpdated, isEmpty, currentTime, duration, analyser }) => {
+const SongDetailView = ({ song, isPlaying, onPlayPause, onNext, onPrevious, onSeek, onSongUpdated, onOpenSettings, isEmpty, currentTime, duration, analyser }) => {
     const [activeTab, setActiveTab] = useState('lyrics');
     const [researching, setResearching] = useState(false);
     const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash');
@@ -384,9 +384,17 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, onNext, onPrevious, onSe
                                             </div>
                                             <p className="text-google-text-secondary mb-8">
                                                 {song.lyrics_status === 'unavailable'
-                                                    ? 'No synced lyrics available in strict mode.'
+                                                    ? 'Strict mode hides unsynced lyrics. Disable Strict LRC in Settings to view plain-text results.'
                                                     : 'No lyrics available yet.'}
                                             </p>
+                                            {song.lyrics_status === 'unavailable' && (
+                                                <button
+                                                    onClick={() => onOpenSettings?.()}
+                                                    className="mb-6 rounded-xl border border-google-gold/40 px-4 py-2 text-xs font-semibold text-google-gold hover:bg-google-gold/10 transition-colors"
+                                                >
+                                                    Open Settings
+                                                </button>
+                                            )}
 
                                             <div className="bg-google-surface/50 border border-white/5 p-6 rounded-[2rem] max-w-sm w-full space-y-4">
                                                 <div className="space-y-1">

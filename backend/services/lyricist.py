@@ -14,7 +14,21 @@ from utils.lrc_validator import validate_lrc
 
 class LyricistService:
     def __init__(self):
-        pass
+        self._last_syncedlyrics_reason = "not_found"
+        self._last_gemini_research_reason = "not_found"
+        self._last_gemini_transcription_reason = "not_found"
+
+    @staticmethod
+    def _classify_source_error(error_text: str) -> str:
+        lowered = (error_text or "").lower()
+        if (
+            "429" in lowered
+            or "resource exhausted" in lowered
+            or "rate limit" in lowered
+            or "quota" in lowered
+        ):
+            return "rate_limited"
+        return "source_unavailable"
 
     def clean_text(self, text: str) -> str:
         """Remove feat. and other noise from track names for better search"""
@@ -44,18 +58,22 @@ class LyricistService:
             or None when no source returns any lyrics.
         """
         fallback_unsynced = None
+        source_failures: list[str] = []
 
         # === Step 1: Try syncedlyrics ===
         if status_callback: status_callback("Searching lyric databases...")
         lyrics = self._try_syncedlyrics(track_name, artist_name, status_callback)
         if lyrics:
             if validate_lrc(lyrics):
-                return {"lyrics": lyrics, "source": "syncedlyrics", "is_synced": True}
+                return {"lyrics": lyrics, "source": "syncedlyrics", "is_synced": True, "failure_reason": None}
             fallback_unsynced = fallback_unsynced or {
                 "lyrics": lyrics,
                 "source": "syncedlyrics",
                 "is_synced": False,
+                "failure_reason": None,
             }
+        else:
+            source_failures.append(self._last_syncedlyrics_reason)
         
         # === Step 2: Try Gemini AI research ===
         print(f"syncedlyrics failed or invalid, trying Gemini research...")
@@ -63,12 +81,15 @@ class LyricistService:
         lyrics = self._try_gemini_research(track_name, artist_name, status_callback)
         if lyrics:
             if validate_lrc(lyrics):
-                return {"lyrics": lyrics, "source": "gemini_research", "is_synced": True}
+                return {"lyrics": lyrics, "source": "gemini_research", "is_synced": True, "failure_reason": None}
             fallback_unsynced = fallback_unsynced or {
                 "lyrics": lyrics,
                 "source": "gemini_research",
                 "is_synced": False,
+                "failure_reason": None,
             }
+        else:
+            source_failures.append(self._last_gemini_research_reason)
         
         # === Step 3: Try Gemini audio transcription ===
         if file_path:
@@ -77,21 +98,36 @@ class LyricistService:
             lyrics = self._try_gemini_transcription(file_path, track_name, artist_name, status_callback)
             if lyrics:
                 if validate_lrc(lyrics):
-                    return {"lyrics": lyrics, "source": "gemini_transcription", "is_synced": True}
+                    return {"lyrics": lyrics, "source": "gemini_transcription", "is_synced": True, "failure_reason": None}
                 fallback_unsynced = fallback_unsynced or {
                     "lyrics": lyrics,
                     "source": "gemini_transcription",
                     "is_synced": False,
+                    "failure_reason": None,
                 }
+            else:
+                source_failures.append(self._last_gemini_transcription_reason)
         
         if fallback_unsynced:
             return fallback_unsynced
 
+        failure_reason = "not_found"
+        if any(reason == "rate_limited" for reason in source_failures):
+            failure_reason = "rate_limited"
+        elif any(reason == "source_unavailable" for reason in source_failures):
+            failure_reason = "source_unavailable"
+
         print(f"All lyric sources exhausted for: {track_name}")
-        return None
+        return {
+            "lyrics": None,
+            "source": "none",
+            "is_synced": False,
+            "failure_reason": failure_reason,
+        }
     
     def _try_syncedlyrics(self, track_name: str, artist_name: str, status_callback=None) -> str | None:
         """Try multiple search variations with syncedlyrics"""
+        self._last_syncedlyrics_reason = "not_found"
         search_terms = [
             f"{track_name} {artist_name}",
             f"{self.clean_text(track_name)} {artist_name}",
@@ -116,6 +152,7 @@ class LyricistService:
                     return lrc
             except Exception as e:
                 print(f"[syncedlyrics] Error: {e}")
+                self._last_syncedlyrics_reason = self._classify_source_error(str(e))
                 
         return None
     
@@ -123,18 +160,24 @@ class LyricistService:
         """Try Gemini AI knowledge-based lyric lookup"""
         if not gemini_service.is_available():
             print("[Gemini] Service not available (API key not set)")
+            self._last_gemini_research_reason = "source_unavailable"
             return None
             
         print(f"[Gemini] Researching lyrics for: {track_name} by {artist_name}")
-        return gemini_service.research_lyrics(track_name, artist_name, status_callback, model_id=model_id)
+        lyrics = gemini_service.research_lyrics(track_name, artist_name, status_callback, model_id=model_id)
+        self._last_gemini_research_reason = gemini_service.get_last_failure_reason() or "not_found"
+        return lyrics
     
     def _try_gemini_transcription(self, file_path: str, track_name: str, artist_name: str, status_callback=None, model_id: str | None = None) -> str | None:
         """Try Gemini AI audio transcription"""
         if not gemini_service.is_available():
             print("[Gemini] Service not available (API key not set)")
+            self._last_gemini_transcription_reason = "source_unavailable"
             return None
             
         print(f"[Gemini] Transcribing audio: {file_path}")
-        return gemini_service.transcribe_audio(file_path, track_name, artist_name, status_callback, model_id=model_id)
+        lyrics = gemini_service.transcribe_audio(file_path, track_name, artist_name, status_callback, model_id=model_id)
+        self._last_gemini_transcription_reason = gemini_service.get_last_failure_reason() or "not_found"
+        return lyrics
 
 lyricist = LyricistService()

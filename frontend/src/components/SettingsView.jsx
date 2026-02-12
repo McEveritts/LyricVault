@@ -27,11 +27,14 @@ const SettingsView = () => {
     const [testing, setTesting] = useState(false);
     const [strictLrc, setStrictLrc] = useState(true);
     const [savingLyricsMode, setSavingLyricsMode] = useState(false);
+    const [ytdlpStatus, setYtdlpStatus] = useState(null);
+    const [updatingYtdlp, setUpdatingYtdlp] = useState(false);
 
     useEffect(() => {
         fetchKeyStatuses();
         fetchModels();
         fetchLyricsMode();
+        fetchYtdlpStatus();
     }, []);
 
     const fetchKeyStatuses = async () => {
@@ -67,6 +70,17 @@ const SettingsView = () => {
             setStrictLrc(Boolean(data.strict_lrc));
         } catch (err) {
             console.error('Failed to fetch lyrics mode:', err);
+        }
+    };
+
+    const fetchYtdlpStatus = async () => {
+        try {
+            const res = await fetch(`${API_BASE}/system/ytdlp`);
+            if (!res.ok) return;
+            const data = await res.json();
+            setYtdlpStatus(data);
+        } catch (err) {
+            console.error('Failed to fetch yt-dlp status:', err);
         }
     };
 
@@ -212,6 +226,66 @@ const SettingsView = () => {
             setMessage({ type: 'error', text: 'Failed to update lyrics mode.' });
         } finally {
             setSavingLyricsMode(false);
+        }
+    };
+
+    const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    const handleUpdateYtdlp = async () => {
+        setUpdatingYtdlp(true);
+        setMessage(null);
+        try {
+            const res = await fetch(`${API_BASE}/system/ytdlp/update`, { method: 'POST' });
+            const job = await res.json();
+            if (!res.ok) {
+                setMessage({ type: 'error', text: job.detail || 'Failed to queue yt-dlp update.' });
+                return;
+            }
+
+            let terminalJob = null;
+            for (let attempt = 0; attempt < 45; attempt += 1) {
+                const jobRes = await fetch(`${API_BASE}/jobs/${job.id}`);
+                if (!jobRes.ok) break;
+                const current = await jobRes.json();
+                if (current.status === 'completed' || current.status === 'failed') {
+                    terminalJob = current;
+                    break;
+                }
+                await wait(1500);
+            }
+
+            await fetchYtdlpStatus();
+
+            if (!terminalJob) {
+                setMessage({ type: 'success', text: 'yt-dlp update queued. Check System status shortly.' });
+                return;
+            }
+
+            if (terminalJob.status === 'failed') {
+                setMessage({ type: 'error', text: terminalJob.last_error || 'yt-dlp update job failed.' });
+                return;
+            }
+
+            let result = null;
+            try {
+                result = JSON.parse(terminalJob.result_json || '{}');
+            } catch {
+                result = null;
+            }
+
+            if (result?.status === 'success') {
+                setMessage({ type: 'success', text: `yt-dlp updated successfully (${result.current_version || 'unknown version'}).` });
+            } else if (result?.status === 'rolled_back') {
+                setMessage({ type: 'error', text: 'yt-dlp update failed smoke test and was rolled back.' });
+            } else {
+                setMessage({ type: 'error', text: result?.error || 'yt-dlp update failed.' });
+            }
+        } catch (err) {
+            console.error('Failed to update yt-dlp:', err);
+            setMessage({ type: 'error', text: 'Failed to update yt-dlp.' });
+        } finally {
+            await fetchYtdlpStatus();
+            setUpdatingYtdlp(false);
         }
     };
 
@@ -457,6 +531,16 @@ const SettingsView = () => {
                                                     <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${tier.bg} ${tier.text} ${tier.border} border`}>
                                                         {tier.label}
                                                     </span>
+                                                    {model.lifecycle && (
+                                                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${model.lifecycle === 'preview'
+                                                                ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                                                                : model.lifecycle === 'deprecated'
+                                                                    ? 'bg-red-500/10 text-red-300 border-red-500/20'
+                                                                    : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+                                                            }`}>
+                                                            {model.lifecycle}
+                                                        </span>
+                                                    )}
                                                 </div>
                                                 <p className="text-xs text-google-text-secondary line-clamp-1">{model.description}</p>
                                             </div>
@@ -486,6 +570,32 @@ const SettingsView = () => {
                                     Check the status of core LyricVault services.
                                 </p>
                             </div>
+                        </div>
+                        <div className="mb-4 rounded-2xl border border-white/10 bg-google-surface-high/30 p-4 space-y-3">
+                            <div className="flex items-center justify-between gap-4">
+                                <div className="min-w-0">
+                                    <p className="text-sm font-semibold text-google-text">yt-dlp Maintenance</p>
+                                    <p className="text-xs text-google-text-secondary mt-1">
+                                        Version: <span className="text-google-text">{ytdlpStatus?.version || 'unknown'}</span>
+                                    </p>
+                                    <p className="text-xs text-google-text-secondary">
+                                        Last update: <span className="text-google-text">{ytdlpStatus?.last_update_status || 'never'}</span>
+                                    </p>
+                                    {ytdlpStatus?.last_update_error && (
+                                        <p className="text-xs text-red-300 mt-1 break-words">{ytdlpStatus.last_update_error}</p>
+                                    )}
+                                </div>
+                                <button
+                                    onClick={handleUpdateYtdlp}
+                                    disabled={updatingYtdlp}
+                                    className="px-4 py-2 rounded-xl bg-google-gold text-black text-xs font-semibold disabled:opacity-50"
+                                >
+                                    {updatingYtdlp ? 'Updating...' : 'Check & Update yt-dlp'}
+                                </button>
+                            </div>
+                            <p className="text-[11px] text-google-text-secondary">
+                                Managed update runs a smoke extractor check and rolls back automatically on failure.
+                            </p>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <SystemComponent name="API Server" status="online" description="Handles backend requests." />

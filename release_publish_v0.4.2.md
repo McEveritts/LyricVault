@@ -10,7 +10,15 @@
 Get-ChildItem release | Where-Object { $_.Name -like '*0.4.2*' }
 Get-Content release/SHA256SUMS-v0.4.2.txt
 Get-Content release_checksums_v0.4.2.txt
+.\VERIFY_RELEASE.ps1 -ChecksumsFile release_checksums_v0.4.2.txt
 ```
+
+## 1.1) Security Trust Evidence (Before Publish)
+- Run Windows Defender scan against:
+  - `release/LyricVault Setup 0.4.2.exe`
+  - `release/LyricVault 0.4.2.exe`
+- Run VirusTotal upload/scan and capture report links.
+- Attach scan evidence links in release notes draft/internal report.
 
 ## 2) Commit Release Metadata
 ```powershell

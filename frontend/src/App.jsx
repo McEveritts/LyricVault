@@ -364,6 +364,7 @@ export default function App() {
             onPrevious={handlePrevious}
             onSeek={handleSeek}
             onSongUpdated={handleSongUpdated}
+            onOpenSettings={() => setActiveTab('settings')}
             currentTime={currentSong?.id === viewedSong?.id ? currentTime : 0}
             duration={currentSong?.id === viewedSong?.id ? duration : (viewedSong?.duration || 0)}
             analyser={analyser}

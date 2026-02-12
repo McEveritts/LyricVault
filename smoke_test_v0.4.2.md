@@ -26,13 +26,21 @@
 5. Open Song Detail and verify synced-line scroll only occurs on timed LRC tracks.
 6. Verify Social Media discovery bucket, source subfilters, and source tags render.
 
+## Resilience Checks
+1. Start a dummy service on port `8000` before launching LyricVault.
+2. Launch LyricVault and confirm startup still succeeds (dynamic backend port fallback).
+3. In Settings -> System, run `Check & Update yt-dlp`.
+4. Confirm update completes (or rolls back) and discovery/ingest still functions.
+
 ## Pass Criteria
 - No startup failures.
+- App remains launchable when `localhost:8000` is occupied.
 - No backend launch errors.
 - Queue/history split is correct (`pending/processing/retrying` vs `completed/failed`).
 - Lyrics mode toggle persists after app restart.
 - No white flash during major route transitions.
 - Reported app version surfaces display `0.4.2`.
+- yt-dlp managed update reports deterministic status (`success`, `rolled_back`, or `failed`).
 
 ## Evidence to Capture
 - Screenshots: Settings toggle, Processing queue, Activity log, Song Detail synced/unsynced states, Social Media discover mode.

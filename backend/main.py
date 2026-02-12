@@ -44,6 +44,7 @@ from database import models
 from services.ingestor import ingestor
 from services.lyricist import lyricist
 from services.gemini_service import gemini_service
+from services.ytdlp_manager import ytdlp_manager
 from services import settings_service
 from services.worker import worker
 from utils.lrc_validator import validate_lrc
@@ -59,6 +60,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="LyricVault API", version="0.4.2", lifespan=lifespan)
+DEFAULT_BACKEND_PORT = 8000
 
 # Mount downloads directory
 os.makedirs(DOWNLOADS_DIR, exist_ok=True)
@@ -306,6 +308,52 @@ def _enqueue_ingest_job(
     db.refresh(job)
     return job
 
+
+def _enqueue_ytdlp_update_job(db: Session) -> models.Job:
+    idempotency_key = "maintenance_update_ytdlp"
+    existing_job = db.query(models.Job).filter(models.Job.idempotency_key == idempotency_key).first()
+    payload = {"requested_at": datetime.now(timezone.utc).isoformat()}
+
+    if existing_job:
+        if existing_job.status in ("pending", "processing", "retrying"):
+            return existing_job
+        now = datetime.now(timezone.utc)
+        existing_job.type = "maintenance_update_ytdlp"
+        existing_job.title = "Maintenance: Update yt-dlp"
+        existing_job.status = "pending"
+        existing_job.payload = json.dumps(payload)
+        existing_job.result_json = None
+        existing_job.progress = 0
+        existing_job.retry_count = 0
+        existing_job.last_error = None
+        existing_job.worker_id = None
+        existing_job.leased_until = None
+        existing_job.available_at = now
+        existing_job.started_at = None
+        existing_job.completed_at = None
+        db.commit()
+        db.refresh(existing_job)
+        return existing_job
+
+    job = models.Job(
+        type="maintenance_update_ytdlp",
+        title="Maintenance: Update yt-dlp",
+        status="pending",
+        idempotency_key=idempotency_key,
+        payload=json.dumps(payload),
+    )
+    db.add(job)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        existing_job = db.query(models.Job).filter(models.Job.idempotency_key == idempotency_key).first()
+        if existing_job:
+            return existing_job
+        raise
+    db.refresh(job)
+    return job
+
 @app.post("/ingest", response_model=JobResponse, status_code=202)
 async def ingest_song(request: IngestRequest, db: Session = Depends(get_db)):
     try:
@@ -346,10 +394,15 @@ async def research_lyrics_manual(song_id: int, request: ResearchRequest, db: Ses
 
     artist_name = song.artist.name if song.artist else "Unknown"
     lyrics = None
+    failure_reason = "not_found"
 
     if request.mode == "transcribe":
         if not song.file_path or not os.path.exists(song.file_path):
-            return {"status": "failed", "message": "Audio file not found for transcription."}
+            return {
+                "status": "failed",
+                "message": "Audio file not found for transcription.",
+                "failure_reason": "source_unavailable",
+            }
         lyrics = await run_in_threadpool(
             lyricist._try_gemini_transcription,
             song.file_path,
@@ -357,6 +410,8 @@ async def research_lyrics_manual(song_id: int, request: ResearchRequest, db: Ses
             artist_name,
             model_id=request.model_id,
         )
+        if not lyrics:
+            failure_reason = lyricist._last_gemini_transcription_reason
     elif request.mode == "research":
         lyrics = await run_in_threadpool(
             lyricist._try_gemini_research,
@@ -364,6 +419,8 @@ async def research_lyrics_manual(song_id: int, request: ResearchRequest, db: Ses
             artist_name,
             model_id=request.model_id,
         )
+        if not lyrics:
+            failure_reason = lyricist._last_gemini_research_reason
     else:
         lyrics = await run_in_threadpool(
             lyricist._try_gemini_research,
@@ -371,6 +428,8 @@ async def research_lyrics_manual(song_id: int, request: ResearchRequest, db: Ses
             artist_name,
             model_id=request.model_id,
         )
+        if not lyrics:
+            failure_reason = lyricist._last_gemini_research_reason
         if not lyrics and song.file_path and os.path.exists(song.file_path):
             lyrics = await run_in_threadpool(
                 lyricist._try_gemini_transcription,
@@ -379,6 +438,8 @@ async def research_lyrics_manual(song_id: int, request: ResearchRequest, db: Ses
                 artist_name,
                 model_id=request.model_id,
             )
+            if not lyrics:
+                failure_reason = lyricist._last_gemini_transcription_reason
 
     strict_lrc = settings_service.get_strict_lrc_mode()
     existing_synced = bool(song.lyrics_synced and song.lyrics and validate_lrc(song.lyrics))
@@ -400,7 +461,11 @@ async def research_lyrics_manual(song_id: int, request: ResearchRequest, db: Ses
         song.lyrics = "Lyrics not found."
         song.lyrics_synced = False
         db.commit()
-    return {"status": "failed", "message": "AI could not find valid synced lyrics."}
+    return {
+        "status": "failed",
+        "message": "AI could not find valid synced lyrics.",
+        "failure_reason": failure_reason or "not_found",
+    }
 
 @app.get("/jobs/active")
 def list_active_jobs(db: Session = Depends(get_db)):
@@ -627,10 +692,48 @@ def set_model(request: ModelRequest):
         raise HTTPException(status_code=400, detail=str(e))
     return {"status": "saved"}
 
+
+@app.get("/system/ytdlp")
+def get_ytdlp_system_status():
+    return ytdlp_manager.get_status()
+
+
+@app.post("/system/ytdlp/update", response_model=JobResponse, status_code=202)
+def trigger_ytdlp_update(db: Session = Depends(get_db)):
+    try:
+        return _enqueue_ytdlp_update_job(db)
+    except Exception as e:
+        logger.error(f"Failed to enqueue yt-dlp update: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to queue yt-dlp update")
+
 @app.get("/")
 def read_root():
     return {"message": "LyricVault Backend v0.4.2 is running"}
 
+def resolve_backend_port() -> int:
+    raw = os.getenv("LYRICVAULT_BACKEND_PORT")
+    if not raw:
+        return DEFAULT_BACKEND_PORT
+    try:
+        port = int(raw.strip())
+    except Exception:
+        logger.warning(
+            "Invalid LYRICVAULT_BACKEND_PORT value '%s'. Falling back to %s.",
+            raw,
+            DEFAULT_BACKEND_PORT,
+        )
+        return DEFAULT_BACKEND_PORT
+
+    if 1 <= port <= 65535:
+        return port
+
+    logger.warning(
+        "Out-of-range LYRICVAULT_BACKEND_PORT '%s'. Falling back to %s.",
+        raw,
+        DEFAULT_BACKEND_PORT,
+    )
+    return DEFAULT_BACKEND_PORT
+
 if __name__ == "__main__":
     reload_enabled = os.getenv("LYRICVAULT_BACKEND_RELOAD", "0") == "1"
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=reload_enabled)
+    uvicorn.run("main:app", host="0.0.0.0", port=resolve_backend_port(), reload=reload_enabled)
