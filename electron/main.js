@@ -55,7 +55,11 @@ function startBackend() {
     if (ffmpegDir) {
         env.FFMPEG_DIR = ffmpegDir;
         // Also add to PATH so yt-dlp can find it
-        env.PATH = ffmpegDir + ';' + env.PATH;
+        if (env.PATH) {
+            env.PATH = `${ffmpegDir}${path.delimiter}${env.PATH}`;
+        } else {
+            env.PATH = ffmpegDir;
+        }
     }
 
     console.log(`Starting backend: ${pythonPath} ${backendScript}`);
@@ -65,6 +69,7 @@ function startBackend() {
         env: env,
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: true,
+        shell: false, // Ensure we don't use shell interpolation for security
     });
 
     backendProcess.stdout.on('data', (data) => {

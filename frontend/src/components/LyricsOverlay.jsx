@@ -6,20 +6,47 @@ const LyricsOverlay = ({ song, isOpen, onClose, currentTime }) => {
     const activeLineRef = useRef(null);
     const [isResearching, setIsResearching] = useState(false);
     const [userLyrics, setUserLyrics] = useState(null);
+    const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash');
+    const [statusMsg, setStatusMsg] = useState(null);
 
     useEffect(() => {
         document.body.style.overflow = isOpen ? 'hidden' : 'unset';
         return () => { document.body.style.overflow = 'unset'; };
     }, [isOpen]);
 
+    useEffect(() => {
+        if (!isOpen) return undefined;
+        let isMounted = true;
+
+        const fetchSelectedModel = async () => {
+            try {
+                const res = await fetch(`${API_BASE}/settings/models`);
+                if (!res.ok) return;
+                const data = await res.json();
+                if (isMounted && data?.selected) {
+                    setSelectedModel(data.selected);
+                }
+            } catch (error) {
+                console.error('Failed to fetch selected model:', error);
+            }
+        };
+
+        fetchSelectedModel();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [isOpen]);
+
     const handleResearch = async () => {
         setIsResearching(true);
+        setStatusMsg("Researching lyrics...");
         try {
             const response = await fetch(`${API_BASE}/research_lyrics/${song.id}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    model_id: 'gemini-2.0-flash',
+                    model_id: selectedModel,
                     mode: 'auto'
                 })
             });
@@ -27,12 +54,13 @@ const LyricsOverlay = ({ song, isOpen, onClose, currentTime }) => {
 
             if (data.status === 'success') {
                 setUserLyrics(data.lyrics);
+                setStatusMsg("Lyrics updated.");
             } else {
-                alert(data.message || "AI could not find lyrics for this song.");
+                setStatusMsg(data.message || "AI could not find lyrics for this song.");
             }
         } catch (error) {
             console.error("Research failed:", error);
-            alert("Failed to connect to research service.");
+            setStatusMsg("Failed to connect to research service.");
         }
         setIsResearching(false);
     };
@@ -182,6 +210,9 @@ const LyricsOverlay = ({ song, isOpen, onClose, currentTime }) => {
                                 "Research Lyrics with AI"
                             )}
                         </button>
+                        {statusMsg && (
+                            <p className="mt-3 text-xs text-google-gold/90 tracking-wide uppercase">{statusMsg}</p>
+                        )}
                     </div>
                 )}
 

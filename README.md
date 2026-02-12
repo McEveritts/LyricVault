@@ -1,8 +1,8 @@
-# ![LyricVault Logo](./frontend/public/logo.svg) LyricVault v0.3.1
+# ![LyricVault Logo](./frontend/public/logo.svg) LyricVault v0.3.2
 
 ## The Ultimate Local Music Sanctuary — Powered by AI
 
-[![Version](https://img.shields.io/badge/version-0.3.1-E2C286?style=for-the-badge)](https://github.com/McEveritts/LyricVault)
+[![Version](https://img.shields.io/badge/version-0.3.2-E2C286?style=for-the-badge)](https://github.com/McEveritts/LyricVault)
 [![License: MIT](https://img.shields.io/badge/License-MIT-E2C286?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Build: Portable & Installer](https://img.shields.io/badge/Build-Portable%20%2B%20Installer-2B2D31?style=for-the-badge)](https://github.com/McEveritts/LyricVault/releases)
 
@@ -16,7 +16,13 @@ Stop relying on streaming services that change metadata or remove tracks. Build 
 
 ---
 
-## 🚀 New in v0.3.0
+## 🚀 New in v0.3.2
+
+### 🛡️ Security & Core Integrity
+
+- **Audit-Grade Security**: Patched critical command injection vectors and hardened CORS policies.
+- **Atomic Ingestion**: Zero-fail transaction logic ensures your library database never gets corrupted by interrupted downloads.
+- **Production Ready**: Verified against comprehensive regression suites for release.
 
 ### 🧠 AI & Model Controls
 
@@ -68,13 +74,13 @@ Inspired by the Google Pixel 10 Pro and deep house vibes:
 
 ### 1. Installation
 
-Grab the latest release from the `releases` folder or build it yourself.
+Grab the latest release from the `release/` folder or build it yourself.
 
 **Option A: Installer**
-Run `LyricVault Setup 0.3.0.exe` to install to your system.
+Run `LyricVault Setup 0.3.2.exe` to install to your system.
 
 **Option B: Portable**
-Run `LyricVault 0.3.0.exe` to launch instantly.
+Run `LyricVault 0.3.2.exe` to launch instantly.
 
 ### 2. Configuration
 

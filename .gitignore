@@ -38,6 +38,8 @@ backend/downloads/
 backend/lyricvault.db
 backend/lyricvault_v2.db
 lyricvault_v2.db
+*.db-wal
+*.db-shm
 backend_temp/
 logs/
 frontend/lint.json

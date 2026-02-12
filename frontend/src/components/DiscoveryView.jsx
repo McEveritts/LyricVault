@@ -110,6 +110,44 @@ const DiscoveryView = ({ onIngest, onQueueNext, onAddToQueue }) => {
 const SearchResultItem = ({ result, onIngest, onQueueNext, onAddToQueue }) => {
     const [status, setStatus] = useState('idle'); // 'idle', 'ingesting', 'queuing'
 
+    const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    const resolveSongFromJob = async (jobId, maxAttempts = 45) => {
+        for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+            const taskRes = await fetch(`${API_BASE}/tasks/${jobId}`);
+            if (!taskRes.ok) {
+                throw new Error(`Failed to read job ${jobId} (${taskRes.status})`);
+            }
+
+            const task = await taskRes.json();
+            if (task.status === 'completed') {
+                let songId = null;
+                try {
+                    const resultData = JSON.parse(task.result_json || '{}');
+                    songId = resultData.song_id;
+                } catch {
+                    songId = null;
+                }
+
+                if (!songId) return null;
+
+                const songRes = await fetch(`${API_BASE}/song/${songId}`);
+                if (!songRes.ok) {
+                    throw new Error(`Failed to fetch ingested song ${songId} (${songRes.status})`);
+                }
+                return await songRes.json();
+            }
+
+            if (task.status === 'failed') {
+                throw new Error(task.last_error || 'Ingest job failed');
+            }
+
+            await wait(1000);
+        }
+
+        return null;
+    };
+
     const handleAction = async (actionType) => {
         setStatus(actionType === 'ingest' ? 'ingesting' : 'queuing');
         try {
@@ -118,15 +156,20 @@ const SearchResultItem = ({ result, onIngest, onQueueNext, onAddToQueue }) => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ url: result.url }),
             });
-            if (response.ok) {
-                const songData = await response.json();
-                // If it was just an ingest, call onIngest
-                if (actionType === 'ingest') {
-                    if (onIngest) onIngest();
-                } else if (actionType === 'queueNext') {
-                    if (onQueueNext) onQueueNext(songData);
-                } else if (actionType === 'addToQueue') {
-                    if (onAddToQueue) onAddToQueue(songData);
+            if (!response.ok) {
+                throw new Error(`Ingest failed (${response.status})`);
+            }
+
+            const jobData = await response.json();
+            if (onIngest) onIngest();
+
+            if (actionType === 'queueNext' || actionType === 'addToQueue') {
+                const callback = actionType === 'queueNext' ? onQueueNext : onAddToQueue;
+                if (callback && jobData?.id) {
+                    const songData = await resolveSongFromJob(jobData.id);
+                    if (songData) {
+                        callback(songData);
+                    }
                 }
             }
         } catch (err) {

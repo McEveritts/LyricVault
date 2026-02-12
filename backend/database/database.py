@@ -1,8 +1,21 @@
 import os
 import logging
+import sqlite3
+from datetime import datetime
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from .models import Base
+
+# sqlite3 datetime adapter deprecation fixes for Python 3.12+
+def adapt_datetime_iso(val):
+    return val.isoformat()
+
+def convert_datetime(val):
+    return datetime.fromisoformat(val.decode())
+
+sqlite3.register_adapter(datetime, adapt_datetime_iso)
+sqlite3.register_converter("DATETIME", convert_datetime)
+sqlite3.register_converter("timestamp", convert_datetime)
 
 logger = logging.getLogger(__name__)
 

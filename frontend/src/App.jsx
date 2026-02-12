@@ -22,6 +22,10 @@ export default function App() {
   const [volume, setVolume] = useState(0.7);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [queue, setQueue] = useState([]);
+  const [playbackHistory, setPlaybackHistory] = useState([]);
+  const [repeatMode, setRepeatMode] = useState('off'); // 'off', 'all', 'one'
+  const [shuffleMode, setShuffleMode] = useState(false);
 
   // Audio Context / Visualizer State
   const [analyser, setAnalyser] = useState(null);
@@ -94,9 +98,9 @@ export default function App() {
     }
   };
 
-  const fetchSongDetails = async (song) => {
+  const fetchSongDetails = async (song, signal) => {
     try {
-      const response = await fetch(`${API_BASE}/song/${song.id}`);
+      const response = await fetch(`${API_BASE}/song/${song.id}`, { signal });
       if (response.ok) {
         const data = await response.json();
         if (data.status === 're-downloading') {
@@ -105,14 +109,28 @@ export default function App() {
         return data;
       }
     } catch (error) {
+      if (error.name === 'AbortError') return null;
       console.error("Failed to fetch song details:", error);
     }
     return song;
   };
 
-  const handlePlaySong = async (song) => {
-    const fullSong = await fetchSongDetails(song);
+  const handlePlaySong = async (song, options = {}) => {
+    const { addCurrentToHistory = true } = options;
+    const previousSong = currentSong;
+
+    // Race condition protection
+    if (window._abortController) {
+      window._abortController.abort();
+    }
+    window._abortController = new AbortController();
+
+    const fullSong = await fetchSongDetails(song, window._abortController.signal);
     if (!fullSong) return;
+
+    if (addCurrentToHistory && previousSong?.id && previousSong.id !== fullSong.id) {
+      setPlaybackHistory(prev => [...prev, previousSong].slice(-100));
+    }
 
     if (fullSong.status === 'cached' && fullSong.stream_url) {
       clearRehydrating(fullSong.id);
@@ -177,7 +195,7 @@ export default function App() {
             if (currentSong?.id === song.id) {
               setIsPlaying(true);
             }
-          } else if (song.status === 'expired' && !song.source_url) {
+          } else if (song.status === 'expired') {
             setRehydratingSongIds(prev => prev.filter(id => id !== songId));
           }
         } catch (error) {
@@ -200,12 +218,79 @@ export default function App() {
     }
   };
 
+  const restartCurrentSong = () => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = 0;
+    }
+    setCurrentTime(0);
+    setIsPlaying(true);
+  };
+
+  const handleNext = (reason = 'manual') => {
+    if (!currentSong) return;
+
+    if (reason === 'ended' && repeatMode === 'one') {
+      restartCurrentSong();
+      return;
+    }
+
+    if (queue.length > 0) {
+      const nextIndex = shuffleMode ? Math.floor(Math.random() * queue.length) : 0;
+      const nextSong = queue[nextIndex];
+      setQueue(prev => prev.filter((_, index) => index !== nextIndex));
+      handlePlaySong(nextSong, { addCurrentToHistory: true });
+      return;
+    }
+
+    if (repeatMode === 'one' || repeatMode === 'all') {
+      restartCurrentSong();
+      return;
+    }
+
+    setIsPlaying(false);
+  };
+
+  const handlePrevious = () => {
+    if (!currentSong) return;
+
+    if (audioRef.current && audioRef.current.currentTime > 3) {
+      restartCurrentSong();
+      return;
+    }
+
+    if (playbackHistory.length > 0) {
+      const previousSong = playbackHistory[playbackHistory.length - 1];
+      setPlaybackHistory(prev => prev.slice(0, -1));
+      handlePlaySong(previousSong, { addCurrentToHistory: false });
+      return;
+    }
+
+    restartCurrentSong();
+  };
+
+  const handleQueueNext = (song) => {
+    setQueue(prev => {
+      const deduped = prev.filter(item => item.id !== song.id);
+      return [song, ...deduped];
+    });
+  };
+
+  const handleAddToQueue = (song) => {
+    setQueue(prev => [...prev, song]);
+  };
+
   const handleSongDetailPlayPause = () => {
     if (viewedSong?.id === currentSong?.id) {
       handlePlayPause();
     } else if (viewedSong) {
       handlePlaySong(viewedSong);
     }
+  };
+
+  const handleSongUpdated = (updatedSong) => {
+    setViewedSong(prev => (prev?.id === updatedSong.id ? updatedSong : prev));
+    setCurrentSong(prev => (prev?.id === updatedSong.id ? updatedSong : prev));
+    setRefreshKey(prev => prev + 1);
   };
 
   const renderContent = () => {
@@ -233,6 +318,8 @@ export default function App() {
                   rehydratingSongIds={rehydratingSongIds}
                   onPlay={handlePlaySong}
                   onView={handleViewSong}
+                  onQueueNext={handleQueueNext}
+                  onAddToQueue={handleAddToQueue}
                 />
               </div>
             </main>
@@ -250,6 +337,8 @@ export default function App() {
                 rehydratingSongIds={rehydratingSongIds}
                 onPlay={handlePlaySong}
                 onView={handleViewSong}
+                onQueueNext={handleQueueNext}
+                onAddToQueue={handleAddToQueue}
               />
             </main>
           </>
@@ -260,6 +349,7 @@ export default function App() {
             song={viewedSong}
             isPlaying={isPlaying && currentSong?.id === viewedSong?.id}
             onPlayPause={handleSongDetailPlayPause}
+            onSongUpdated={handleSongUpdated}
             currentTime={currentSong?.id === viewedSong?.id ? currentTime : 0}
             analyser={analyser}
           />
@@ -274,6 +364,8 @@ export default function App() {
         return (
           <DiscoveryView
             onIngest={handleIngestSuccess}
+            onQueueNext={handleQueueNext}
+            onAddToQueue={handleAddToQueue}
           />
         );
       case 'playlists':
@@ -311,6 +403,8 @@ export default function App() {
         currentSong={currentSong}
         isPlaying={isPlaying}
         onPlayPause={handlePlayPause}
+        onNext={handleNext}
+        onPrevious={handlePrevious}
         onStreamError={handleStreamError}
         volume={volume}
         onVolumeChange={setVolume}
@@ -320,11 +414,17 @@ export default function App() {
           setCurrentTime(curr);
           setDuration(dur);
         }}
-        onEnded={() => setIsPlaying(false)}
+        onEnded={() => handleNext('ended')}
         onLyricsClick={() => setShowLyrics(true)}
         onSeek={handleSeek}
         analyser={analyser}
         audioRef={audioRef}
+        queue={queue}
+        setQueue={setQueue}
+        shuffleMode={shuffleMode}
+        setShuffleMode={setShuffleMode}
+        repeatMode={repeatMode}
+        setRepeatMode={setRepeatMode}
       />
       {rehydratingSongIds.length > 0 && (
         <div className="fixed top-6 right-6 z-[60] bg-google-surface/95 border border-google-surface-high rounded-2xl px-4 py-3 shadow-2xl backdrop-blur-md flex items-center gap-3">
@@ -337,7 +437,13 @@ export default function App() {
           </div>
         </div>
       )}
-      <LyricsOverlay song={currentSong} isOpen={showLyrics} onClose={() => setShowLyrics(false)} currentTime={currentTime} />
+      <LyricsOverlay
+        key={`${currentSong?.id ?? 'no-song'}-${showLyrics ? 'open' : 'closed'}`}
+        song={currentSong}
+        isOpen={showLyrics}
+        onClose={() => setShowLyrics(false)}
+        currentTime={currentTime}
+      />
     </div>
   );
 }

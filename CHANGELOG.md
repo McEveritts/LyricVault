@@ -2,11 +2,22 @@
 
 All notable changes to the LyricVault project will be documented in this file.
 
-## [0.3.1] - Unreleased
+## [0.3.2] - 2026-02-12
 
 ### Added
 
--
+- Playback queue controls: `Play Next` and `Add to Queue` actions integrated in Library and Discovery.
+- API contract coverage for CORS origin gating and stream URL host correctness.
+
+### Changed
+
+- Player navigation now honors queue-aware transitions, repeat states, and previous-track history.
+- Song detail lyric research refreshes in-app state instead of hard reloading the page.
+- Release documentation updated to reference `0.3.2` installer and portable artifacts.
+
+### Security
+
+- CORS origin policy gates permissive `file://` and `null` origins to development mode only.
 
 ## [0.3.0] - 2026-02-11
 

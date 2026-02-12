@@ -7,7 +7,7 @@ import hashlib
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from logging.handlers import RotatingFileHandler
-from urllib.parse import quote, urlparse, urlunparse
+from urllib.parse import urlparse, urlunparse
 
 # Add current directory to sys.path
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -27,7 +27,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -57,20 +57,30 @@ async def lifespan(app: FastAPI):
         worker.stop()
 
 
-app = FastAPI(title="LyricVault API", version="0.3.1", lifespan=lifespan)
+app = FastAPI(title="LyricVault API", version="0.3.2", lifespan=lifespan)
 
 # Mount downloads directory
 os.makedirs(DOWNLOADS_DIR, exist_ok=True)
 app.mount("/stream", StaticFiles(directory=DOWNLOADS_DIR), name="stream")
 
 # CORS Setup
+IS_DEV = os.getenv("LYRICVAULT_ENV", "production") == "development"
+
+allowed_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    "app://.",
+]
+
+if IS_DEV:
+    # Allow permissive origins only in development
+    allowed_origins.extend(["file://", "null"])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:8000",
-        "app://.",
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -219,6 +229,12 @@ def _audio_status(song: models.Song, active_ingest_urls: set[str]) -> str:
     if normalized_source and normalized_source in active_ingest_urls:
         return "re-downloading"
     return "expired"
+
+
+def _stream_url(request: Request, filename: str | None) -> str:
+    if not filename:
+        return ""
+    return str(request.url_for("stream", path=filename))
 
 
 def _enqueue_ingest_job(
@@ -406,7 +422,7 @@ async def retry_lyrics(song_id: int, db: Session = Depends(get_db)):
     return job
 
 @app.get("/library", response_model=list[SongResponse])
-def get_library(db: Session = Depends(get_db)):
+def get_library(request: Request, db: Session = Depends(get_db)):
     songs = db.query(models.Song).order_by(models.Song.id.desc()).all()
     processing_song_ids = _active_lyrics_song_ids(db)
     active_ingest_urls = _active_ingest_urls(db)
@@ -422,7 +438,7 @@ def get_library(db: Session = Depends(get_db)):
     for song in songs:
         status = _audio_status(song, active_ingest_urls)
         filename = os.path.basename(song.file_path) if status == "cached" and song.file_path else ""
-        stream_url = f"http://localhost:8000/stream/{quote(filename)}" if filename else ""
+        stream_url = _stream_url(request, filename)
         
         response.append({
             "id": song.id,
@@ -438,7 +454,7 @@ def get_library(db: Session = Depends(get_db)):
     return response
 
 @app.get("/song/{song_id}")
-def get_song(song_id: int, db: Session = Depends(get_db)):
+def get_song(song_id: int, request: Request, db: Session = Depends(get_db)):
     song = db.get(models.Song, song_id)
     if not song:
         raise HTTPException(status_code=404, detail="Song not found")
@@ -450,21 +466,8 @@ def get_song(song_id: int, db: Session = Depends(get_db)):
     active_ingest_urls = _active_ingest_urls(db)
     status = _audio_status(song, active_ingest_urls)
 
-    if status == "expired" and song.source_url and ingestor.parse_url(song.source_url):
-        try:
-            _enqueue_ingest_job(
-                db,
-                url=song.source_url,
-                title=f"Rehydrating: {song.title}",
-                song_id=song.id,
-                allow_requeue=True
-            )
-            status = "re-downloading"
-        except Exception as e:
-            logger.error(f"Failed to enqueue rehydration for song {song.id}: {e}", exc_info=True)
-
     filename = os.path.basename(song.file_path) if status == "cached" and song.file_path else ""
-    stream_url = f"http://localhost:8000/stream/{quote(filename)}" if filename else ""
+    stream_url = _stream_url(request, filename)
     processing_song_ids = _active_lyrics_song_ids(db)
 
     return {
@@ -542,7 +545,8 @@ def set_model(request: ModelRequest):
 
 @app.get("/")
 def read_root():
-    return {"message": "LyricVault Backend v0.3.1 is running"}
+    return {"message": "LyricVault Backend v0.3.2 is running"}
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    reload_enabled = os.getenv("LYRICVAULT_BACKEND_RELOAD", "0") == "1"
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=reload_enabled)

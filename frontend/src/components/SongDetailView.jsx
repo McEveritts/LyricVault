@@ -1,139 +1,186 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import API_BASE from '../config/api';
 import Visualizer from './Visualizer';
 
-const SongDetailView = ({ song, isPlaying, onPlayPause, isEmpty, currentTime, analyser }) => {
+const SongDetailView = ({ song, isPlaying, onPlayPause, onSongUpdated, isEmpty, currentTime, analyser }) => {
     const [activeTab, setActiveTab] = useState('lyrics');
     const [researching, setResearching] = useState(false);
     const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash');
     const [transcriptionMode, setTranscriptionMode] = useState(false);
     const [availableModels, setAvailableModels] = useState([]);
     const [statusMsg, setStatusMsg] = useState(null);
-    const lyricsContainerRef = useRef(null);
+    const activeLineRef = useRef(null);
 
     useEffect(() => {
         const fetchModels = async () => {
             try {
                 const res = await fetch(`${API_BASE}/settings/models`);
-                if (res.ok) {
-                    const data = await res.json();
-                    setAvailableModels(data.models);
+                if (!res.ok) return;
+                const data = await res.json();
+                const models = data.models || [];
+                setAvailableModels(models);
+
+                if (data.selected) {
+                    setSelectedModel(data.selected);
+                } else if (models.length > 0) {
+                    setSelectedModel(models[0].id);
                 }
             } catch (err) {
-                console.error("Failed to fetch models:", err);
+                console.error('Failed to fetch models:', err);
             }
         };
+
         fetchModels();
     }, []);
 
+    const modelOptions = availableModels.length > 0
+        ? availableModels
+        : [{ id: selectedModel, name: selectedModel }];
 
+    const lyrics = useMemo(() => {
+        if (!song?.lyrics) return [];
 
-    // --- Lyrics Logic ---
-    const parseLyrics = (text) => {
-        if (!text) return [];
-        const lines = text.split('\n');
+        const lines = song.lyrics.split('\n');
         const parsed = [];
         const timeRegex = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/;
 
-        for (let line of lines) {
+        for (const line of lines) {
             const match = line.match(timeRegex);
             if (match) {
-                const minutes = parseInt(match[1]);
-                const seconds = parseInt(match[2]);
-                const milliseconds = parseInt(match[3]);
-                const time = minutes * 60 + seconds + milliseconds / 1000;
+                const minutes = parseInt(match[1], 10);
+                const seconds = parseInt(match[2], 10);
+                const fractions = parseInt(match[3], 10);
+                const time = minutes * 60 + seconds + fractions / (match[3].length === 3 ? 1000 : 100);
                 const content = line.replace(timeRegex, '').trim();
-                parsed.push({ time, content });
+                if (content) {
+                    parsed.push({ time, content });
+                }
             } else {
-                // If no timestamp, standard line (handle differently if creating a pure LRC view)
-                parsed.push({ time: -1, content: line.trim() });
+                const content = line.trim();
+                if (content) {
+                    parsed.push({ time: -1, content });
+                }
             }
         }
-        return parsed.length > 0 ? parsed : lines.map(l => ({ time: -1, content: l }));
-    };
 
-    const lyrics = React.useMemo(() => parseLyrics(song?.lyrics || ""), [song]);
+        return parsed;
+    }, [song]);
 
-    // Find active line
-    const activeLineIndex = React.useMemo(() => {
+    const hasLyrics = lyrics.length > 0 && song?.lyrics !== 'Lyrics not found.';
+
+    const activeLineIndex = useMemo(() => {
         if (!lyrics.length) return -1;
-        // Find the last line that has a time <= currentTime
-        // If no timestamps, this logic won't work well (returns -1 or 0)
-        // We only sync if we have timestamps
-        const hasTimestamps = lyrics.some(l => l.time > -1);
+        const hasTimestamps = lyrics.some(line => line.time >= 0);
         if (!hasTimestamps) return -1;
 
-        for (let i = lyrics.length - 1; i >= 0; i--) {
-            if (lyrics[i].time !== -1 && lyrics[i].time <= currentTime) {
+        for (let i = lyrics.length - 1; i >= 0; i -= 1) {
+            if (lyrics[i].time >= 0 && lyrics[i].time <= currentTime) {
                 return i;
             }
         }
+
         return -1;
     }, [lyrics, currentTime]);
 
-    // Auto-scroll to active line
     useEffect(() => {
-        if (activeLineIndex !== -1 && lyricsContainerRef.current) {
-            const activeEl = lyricsContainerRef.current.children[activeLineIndex];
-            if (activeEl) {
-                activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
+        if (activeLineIndex !== -1 && activeLineRef.current && typeof activeLineRef.current.scrollIntoView === 'function') {
+            activeLineRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
     }, [activeLineIndex]);
 
-    // --- Export Logic ---
     const handleExportTxt = () => {
         if (!song?.lyrics) return;
+
         const blob = new Blob([song.lyrics], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
+        const link = document.createElement('a');
         const filename = `${song.title} - ${song.artist}`.replace(/[<>:"/\\|?*]/g, '_');
-        a.download = `${filename}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+
+        link.href = url;
+        link.download = `${filename}.txt`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
         URL.revokeObjectURL(url);
     };
 
     const handleExportCsv = () => {
         if (!lyrics.length) return;
 
-        const formatTimeCSV = (seconds) => {
-            if (seconds === -1) return "";
+        const formatTime = (seconds) => {
+            if (seconds < 0) return '';
             const mins = Math.floor(seconds / 60);
             const secs = Math.floor(seconds % 60);
             const ms = Math.floor((seconds % 1) * 1000);
             return `${mins}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
         };
 
-        let csvContent = "Time,Lyric\n";
-        lyrics.forEach(line => {
-            const timeStr = formatTimeCSV(line.time);
+        let csvContent = 'Time,Lyric\n';
+        lyrics.forEach((line) => {
             const escapedContent = `"${line.content.replace(/"/g, '""')}"`;
-            csvContent += `${timeStr},${escapedContent}\n`;
+            csvContent += `${formatTime(line.time)},${escapedContent}\n`;
         });
 
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
+        const link = document.createElement('a');
         const filename = `${song.title} - ${song.artist}`.replace(/[<>:"/\\|?*]/g, '_');
-        a.download = `${filename}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+
+        link.href = url;
+        link.download = `${filename}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
         URL.revokeObjectURL(url);
     };
 
+    const refreshSongDetails = async () => {
+        if (!song?.id) return null;
 
+        const response = await fetch(`${API_BASE}/song/${song.id}`);
+        if (!response.ok) return null;
 
+        const latestSong = await response.json();
+        onSongUpdated?.(latestSong);
+        return latestSong;
+    };
+
+    const handleResearch = async ({ mode, message }) => {
+        if (!song?.id) return;
+
+        setResearching(true);
+        setStatusMsg(message);
+
+        try {
+            const response = await fetch(`${API_BASE}/research_lyrics/${song.id}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model_id: selectedModel,
+                    mode,
+                }),
+            });
+
+            const data = await response.json();
+            if (data.status === 'success') {
+                await refreshSongDetails();
+                setStatusMsg('Lyrics updated.');
+            } else {
+                setStatusMsg(data.message || 'Research failed.');
+            }
+        } catch (err) {
+            console.error('Research failed:', err);
+            setStatusMsg('Connection error.');
+        } finally {
+            setResearching(false);
+        }
+    };
 
     if (!song && isEmpty) {
         return (
             <div className="flex flex-col items-center justify-center h-full text-google-text-secondary animate-in fade-in zoom-in duration-300">
                 <div className="w-24 h-24 bg-google-surface border border-google-surface-high rounded-full flex items-center justify-center mb-6 shadow-inner">
-                    <span className="text-4xl opacity-50">🎵</span>
+                    <span className="text-2xl opacity-50">LV</span>
                 </div>
                 <h2 className="text-xl font-medium text-google-text">No song selected</h2>
                 <p>Select a song from your library to view details.</p>
@@ -145,26 +192,22 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, isEmpty, currentTime, an
 
     return (
         <div className="h-full flex flex-col animate-in slide-in-from-bottom-4 duration-500">
-            {/* Header / Breadcrumb area could go here if needed, provided by parent layout */}
-
             <div className="flex-1 overflow-hidden">
                 <div className="h-full flex flex-col lg:flex-row gap-8 p-8 max-w-7xl mx-auto">
-
-                    {/* Left Column: Metadata & Visuals */}
                     <div className="lg:w-1/3 flex flex-col gap-6">
                         <div className="aspect-square rounded-[2rem] overflow-hidden shadow-2xl bg-google-surface-high border border-white/5 relative group">
                             {song.cover_url ? (
                                 <img src={song.cover_url} alt={song.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 z-10 relative" />
                             ) : (
                                 <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-google-surface to-google-surface-high z-10 relative">
-                                    <span className="text-8xl opacity-20">🎵</span>
+                                    <span className="text-4xl opacity-20">MUSIC</span>
                                 </div>
                             )}
-                            {/* Visualizer Background */}
+
                             <div className="absolute inset-0 z-0 flex items-end justify-center opacity-40">
                                 <Visualizer analyser={analyser} isPlaying={isPlaying} height={100} width={400} />
                             </div>
-                            {/* Play Overlay (Big) */}
+
                             <div className={`absolute inset-0 bg-black/20 flex items-center justify-center transition-opacity duration-300 ${isPlaying ? 'opacity-0 hover:opacity-100' : 'opacity-100'}`}>
                                 <button
                                     onClick={onPlayPause}
@@ -199,9 +242,7 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, isEmpty, currentTime, an
                         </div>
                     </div>
 
-                    {/* Right Column: Tabs (Lyrics / Info) */}
                     <div className="flex-1 flex flex-col bg-google-surface/30 rounded-[2rem] border border-google-surface-high backdrop-blur-sm overflow-hidden">
-                        {/* Tabs Header */}
                         <div className="flex border-b border-google-surface-high">
                             <button
                                 onClick={() => setActiveTab('lyrics')}
@@ -217,11 +258,10 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, isEmpty, currentTime, an
                             </button>
                         </div>
 
-                        {/* Content Area */}
-                        <div className="flex-1 overflow-y-auto p-6 relative scroll-smooth" ref={lyricsContainerRef}>
+                        <div className="flex-1 overflow-y-auto p-6 relative scroll-smooth">
                             {activeTab === 'lyrics' && (
                                 <div className="space-y-6 text-center py-10 relative group">
-                                    {(lyrics.length > 0 && song.lyrics !== "Lyrics not found.") ? (
+                                    {hasLyrics ? (
                                         <>
                                             <div className="absolute top-0 right-0 z-10 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <button
@@ -238,55 +278,24 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, isEmpty, currentTime, an
                                                 >
                                                     CSV
                                                 </button>
-                                                <button
-                                                    onClick={() => {
-                                                        const researchSection = document.getElementById('research-section');
-                                                        if (researchSection) researchSection.scrollIntoView({ behavior: 'smooth' });
-                                                    }}
-                                                    className="px-2 py-1 bg-google-surface-high rounded-lg text-[10px] font-bold text-google-text-secondary hover:text-google-gold transition-colors"
-                                                >
-                                                    Wrong Lyrics?
-                                                </button>
                                             </div>
+
                                             {lyrics.map((line, i) => (
                                                 <p
                                                     key={i}
+                                                    ref={i === activeLineIndex ? activeLineRef : null}
                                                     className={`text-lg transition-all duration-300 cursor-pointer hover:opacity-80
                                                     ${i === activeLineIndex
                                                             ? 'text-google-text font-bold scale-105 origin-center'
-                                                            : 'text-google-text-secondary opacity-40 blur-[0.5px]'
-                                                        }
-                                                `}
+                                                            : 'text-google-text-secondary opacity-40 blur-[0.5px]'}
+                                                    `}
                                                 >
                                                     {line.content}
                                                 </p>
                                             ))}
 
-                                            {/* Wrong Lyrics / Re-research Button */}
                                             <div className="mt-12 pt-8 border-t border-white/5">
-                                                <button
-                                                    onClick={() => {
-                                                        // Determine if we are in "research mode" - actually we can just use the empty state view if we trick it, 
-                                                        // OR we can just duplicate the research UI here. 
-                                                        // Let's toggle a local "showResearch" state.
-                                                        // But we don't have that state yet.
-                                                        // Let's implement a quick toggle.
-                                                        const researchSection = document.getElementById('research-section');
-                                                        if (researchSection) researchSection.scrollIntoView({ behavior: 'smooth' });
-                                                    }}
-                                                    className="text-xs text-google-text-secondary hover:text-google-text underline decoration-dotted"
-                                                >
-                                                    Not the right lyrics? Try researching again.
-                                                </button>
-
-                                                {/* Hidden Research Section for "Re-doing" - actually let's just show it always if requested? 
-                                                   No, cleaning this up: The user wants to FIX the issue where the button DISAPPEARS.
-                                                   The button disappears because `lyrics.length > 0`.
-                                                   If I change the `lyrics.length > 0` check to also check for "not found", that fixes the main bug.
-                                                   
-                                                   To support "Redo", I'll add the research box AT THE BOTTOM of the lyrics list too, or make it toggleable.
-                                                */}
-                                                <div id="research-section" className="mt-8 flex flex-col items-center">
+                                                <div className="mt-8 flex flex-col items-center">
                                                     <p className="text-xs text-google-text-secondary mb-4 uppercase tracking-wider">Manual Research</p>
                                                     <div className="bg-google-surface/50 border border-white/5 p-6 rounded-[2rem] max-w-sm w-full space-y-4">
                                                         <div className="space-y-1 text-left">
@@ -296,42 +305,21 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, isEmpty, currentTime, an
                                                                 onChange={(e) => setSelectedModel(e.target.value)}
                                                                 className="w-full bg-google-surface border border-white/10 rounded-xl px-4 py-2 text-sm text-google-text focus:outline-none focus:ring-1 focus:ring-google-gold"
                                                             >
-                                                                {availableModels.map(m => (
-                                                                    <option key={m.id} value={m.id}>{m.name}</option>
+                                                                {modelOptions.map(model => (
+                                                                    <option key={model.id} value={model.id}>{model.name}</option>
                                                                 ))}
                                                             </select>
                                                         </div>
 
                                                         <button
-                                                            onClick={async () => {
-                                                                setResearching(true);
-                                                                setStatusMsg("AI is researching...");
-                                                                try {
-                                                                    const res = await fetch(`${API_BASE}/research_lyrics/${song.id}`, {
-                                                                        method: 'POST',
-                                                                        headers: { 'Content-Type': 'application/json' },
-                                                                        body: JSON.stringify({ model_id: selectedModel })
-                                                                    });
-                                                                    const data = await res.json();
-                                                                    if (data.status === 'success') {
-                                                                        setStatusMsg("Lyrics found! Refreshing...");
-                                                                        window.location.reload();
-                                                                    } else {
-                                                                        setStatusMsg(data.message || "Research failed.");
-                                                                    }
-                                                                } catch {
-                                                                    setStatusMsg("Connection error.");
-                                                                } finally {
-                                                                    setResearching(false);
-                                                                }
-                                                            }}
+                                                            onClick={() => handleResearch({ mode: 'auto', message: 'AI is researching...' })}
                                                             disabled={researching}
                                                             className="w-full py-3 bg-google-gold text-black rounded-xl font-bold text-sm hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                                                         >
                                                             {researching ? (
                                                                 <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin"></span>
                                                             ) : (
-                                                                <span>✨ Research with Gemini</span>
+                                                                <span>Research with Gemini</span>
                                                             )}
                                                         </button>
                                                         {statusMsg && <p className="text-[10px] text-center text-google-gold font-medium uppercase tracking-wider">{statusMsg}</p>}
@@ -339,11 +327,10 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, isEmpty, currentTime, an
                                                 </div>
                                             </div>
                                         </>
-
                                     ) : (
                                         <div className="flex flex-col items-center justify-center py-20">
                                             <div className="w-16 h-16 bg-google-surface rounded-2xl flex items-center justify-center mb-4 opacity-50">
-                                                <span className="text-3xl">😶</span>
+                                                <span className="text-xs">LRC</span>
                                             </div>
                                             <p className="text-google-text-secondary mb-8">No lyrics available yet.</p>
 
@@ -355,15 +342,19 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, isEmpty, currentTime, an
                                                         onChange={(e) => setSelectedModel(e.target.value)}
                                                         className="w-full bg-google-surface border border-white/10 rounded-xl px-4 py-2 text-sm text-google-text focus:outline-none focus:ring-1 focus:ring-google-gold"
                                                     >
-                                                        {availableModels.map(m => (
-                                                            <option key={m.id} value={m.id}>{m.name}</option>
+                                                        {modelOptions.map(model => (
+                                                            <option key={model.id} value={model.id}>{model.name}</option>
                                                         ))}
                                                     </select>
                                                 </div>
 
                                                 <label className="flex items-center gap-2 cursor-pointer group">
                                                     <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${transcriptionMode ? 'bg-google-gold border-google-gold' : 'border-google-text-secondary group-hover:border-google-text'}`}>
-                                                        {transcriptionMode && <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 text-black"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
+                                                        {transcriptionMode && (
+                                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 text-black">
+                                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                            </svg>
+                                                        )}
                                                     </div>
                                                     <input
                                                         type="checkbox"
@@ -377,39 +368,17 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, isEmpty, currentTime, an
                                                 </label>
 
                                                 <button
-                                                    onClick={async () => {
-                                                        setResearching(true);
-                                                        setStatusMsg(transcriptionMode ? "Listening & Transcribing..." : "AI is researching...");
-                                                        try {
-                                                            const res = await fetch(`${API_BASE}/research_lyrics/${song.id}`, {
-                                                                method: 'POST',
-                                                                headers: { 'Content-Type': 'application/json' },
-                                                                body: JSON.stringify({
-                                                                    model_id: selectedModel,
-                                                                    mode: transcriptionMode ? 'transcribe' : 'auto'
-                                                                })
-                                                            });
-                                                            const data = await res.json();
-                                                            if (data.status === 'success') {
-                                                                setStatusMsg("Lyrics found! Refreshing...");
-                                                                // In a real app we'd refresh the parent or the song state
-                                                                window.location.reload();
-                                                            } else {
-                                                                setStatusMsg(data.message || "Research failed.");
-                                                            }
-                                                        } catch {
-                                                            setStatusMsg("Connection error.");
-                                                        } finally {
-                                                            setResearching(false);
-                                                        }
-                                                    }}
+                                                    onClick={() => handleResearch({
+                                                        mode: transcriptionMode ? 'transcribe' : 'auto',
+                                                        message: transcriptionMode ? 'Listening and transcribing...' : 'AI is researching...'
+                                                    })}
                                                     disabled={researching}
                                                     className="w-full py-3 bg-google-gold text-black rounded-xl font-bold text-sm hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                                                 >
                                                     {researching ? (
                                                         <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin"></span>
                                                     ) : (
-                                                        <span>✨ Research with Gemini</span>
+                                                        <span>Research with Gemini</span>
                                                     )}
                                                 </button>
                                                 {statusMsg && <p className="text-[10px] text-center text-google-gold font-medium uppercase tracking-wider">{statusMsg}</p>}
@@ -425,10 +394,8 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, isEmpty, currentTime, an
                                         <h3 className="text-sm font-bold text-google-text mb-2 uppercase tracking-wider">File Details</h3>
                                         <p className="text-sm">Format: <span className="text-google-text">MP3</span></p>
                                         <p className="text-sm">Bitrate: <span className="text-google-text">320kbps</span></p>
-                                        <p className="text-sm">Path: <span className="text-google-text font-mono break-all">{song.file_path || "Unknown"}</span></p>
+                                        <p className="text-sm">Path: <span className="text-google-text font-mono break-all">{song.file_path || 'Unknown'}</span></p>
                                     </div>
-
-                                    {/* Add more analysis data here later */}
                                 </div>
                             )}
                         </div>
