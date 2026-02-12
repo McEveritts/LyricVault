@@ -157,10 +157,6 @@ const Player = ({
                 </div>
             )}
             <div className="max-w-4xl mx-auto bg-google-surface/80 backdrop-blur-3xl rounded-3xl p-3 px-6 shadow-2xl border border-white/5 flex items-center gap-6 overflow-hidden relative">
-                {/* Background Visualizer - REMOVED */}
-                <div className="absolute inset-0 opacity-20 pointer-events-none">
-                    {/* Inline visualizer removed in favor of Visualizer Deck */}
-                </div>
 
                 {/* Simplified Song Info */}
                 <div className="flex items-center gap-3 min-w-0 w-1/4 z-10 transition-all">
@@ -298,8 +294,8 @@ const Player = ({
                         onClick={onToggleVisualizer}
                         disabled={!visualizerEnabled}
                         className={`p-2 rounded-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed ${showVisualizer
-                                ? 'bg-google-gold text-black shadow-lg shadow-google-gold/20'
-                                : 'hover:bg-white/5 text-google-text-secondary hover:text-google-gold'
+                            ? 'bg-google-gold text-black shadow-lg shadow-google-gold/20'
+                            : 'hover:bg-white/5 text-google-text-secondary hover:text-google-gold'
                             }`}
                         title={visualizerEnabled ? (showVisualizer ? "Close Visualizer" : "Open Visualizer") : "Visualizer unavailable"}
                         aria-label={showVisualizer ? "Close Visualizer" : "Open Visualizer"}

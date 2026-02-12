@@ -144,6 +144,7 @@ const LibraryGrid = ({ refreshTrigger, rehydratingSongIds = [], onPlay, onQueueN
                                         }}
                                         className="w-16 h-16 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white scale-90 group-hover:scale-100 transition-all duration-300 border border-white/20"
                                         title="Play Now"
+                                        aria-label="Play Now"
                                     >
                                         {isRehydrating ? (
                                             <span className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
@@ -162,6 +163,7 @@ const LibraryGrid = ({ refreshTrigger, rehydratingSongIds = [], onPlay, onQueueN
                                             }}
                                             className="w-10 h-10 bg-white/5 hover:bg-google-gold hover:text-black hover:border-google-gold backdrop-blur-md rounded-2xl flex items-center justify-center text-white border border-white/10 transition-all"
                                             title="Play Next"
+                                            aria-label="Play Next"
                                         >
                                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
                                                 <path fillRule="evenodd" d="M2 10a.75.75 0 01.75-.75h12.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10z" clipRule="evenodd" />
@@ -175,6 +177,7 @@ const LibraryGrid = ({ refreshTrigger, rehydratingSongIds = [], onPlay, onQueueN
                                             }}
                                             className="w-10 h-10 bg-white/5 hover:bg-white hover:text-black backdrop-blur-md rounded-2xl flex items-center justify-center text-white border border-white/10 transition-all"
                                             title="Add to Queue"
+                                            aria-label="Add to Queue"
                                         >
                                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
                                                 <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
