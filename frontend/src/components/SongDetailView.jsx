@@ -179,8 +179,10 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, onSongUpdated, isEmpty, 
     if (!song && isEmpty) {
         return (
             <div className="flex flex-col items-center justify-center h-full text-google-text-secondary animate-in fade-in zoom-in duration-300">
-                <div className="w-24 h-24 bg-google-surface border border-google-surface-high rounded-full flex items-center justify-center mb-6 shadow-inner">
-                    <span className="text-2xl opacity-50">LV</span>
+                <div className="w-24 h-24 bg-google-surface border border-google-surface-high rounded-full flex items-center justify-center mb-6 shadow-inner text-google-text-secondary">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-12 h-12 opacity-50">
+                        <path fillRule="evenodd" d="M19.952 1.651a.75.75 0 01.298.599V16.303a3 3 0 01-2.176 5.963l-1.385-.558a2.5 2.5 0 01-.132.062 4.418 4.418 0 01-4.041-.275l-4.731-2.583a2.49 2.49 0 01-1.282-2.193v-4.838a2.5 2.5 0 01.666-1.696l4.205-4.485C11.97 5.253 12.68 4.966 13.433 5c-.171-.235-.348-.465-.533-.687l-2.027-2.285A2.49 2.49 0 0110.198.243l6.502-3.82a.75.75 0 111.96.98l-3.326 1.954c.78.293 1.554.806 2.193 1.484l2.425 .81z" clipRule="evenodd" />
+                    </svg>
                 </div>
                 <h2 className="text-xl font-medium text-google-text">No song selected</h2>
                 <p>Select a song from your library to view details.</p>
@@ -199,8 +201,10 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, onSongUpdated, isEmpty, 
                             {song.cover_url ? (
                                 <img src={song.cover_url} alt={song.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 z-10 relative" />
                             ) : (
-                                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-google-surface to-google-surface-high z-10 relative">
-                                    <span className="text-4xl opacity-20">MUSIC</span>
+                                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-google-surface to-google-surface-high z-10 relative text-google-text-secondary">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-32 h-32 opacity-20">
+                                        <path fillRule="evenodd" d="M19.952 1.651a.75.75 0 01.298.599V16.303a3 3 0 01-2.176 5.963l-1.385-.558a2.5 2.5 0 01-.132.062 4.418 4.418 0 01-4.041-.275l-4.731-2.583a2.49 2.49 0 01-1.282-2.193v-4.838a2.5 2.5 0 01.666-1.696l4.205-4.485C11.97 5.253 12.68 4.966 13.433 5c-.171-.235-.348-.465-.533-.687l-2.027-2.285A2.49 2.49 0 0110.198.243l6.502-3.82a.75.75 0 111.96.98l-3.326 1.954c.78.293 1.554.806 2.193 1.484l2.425 .81z" clipRule="evenodd" />
+                                    </svg>
                                 </div>
                             )}
 
@@ -329,8 +333,10 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, onSongUpdated, isEmpty, 
                                         </>
                                     ) : (
                                         <div className="flex flex-col items-center justify-center py-20">
-                                            <div className="w-16 h-16 bg-google-surface rounded-2xl flex items-center justify-center mb-4 opacity-50">
-                                                <span className="text-xs">LRC</span>
+                                            <div className="w-16 h-16 bg-google-surface rounded-2xl flex items-center justify-center mb-4 opacity-50 text-google-text-secondary">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                                                </svg>
                                             </div>
                                             <p className="text-google-text-secondary mb-8">No lyrics available yet.</p>
 

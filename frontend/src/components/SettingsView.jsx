@@ -149,8 +149,10 @@ const SettingsView = () => {
                 {/* Gemini API Key Section */}
                 <section className="bg-google-surface rounded-3xl p-6 border border-google-surface-high">
                     <div className="flex items-start gap-5">
-                        <div className="w-12 h-12 rounded-full bg-google-surface-high flex items-center justify-center flex-shrink-0">
-                            <span className="text-2xl">🔑</span>
+                        <div className="w-12 h-12 rounded-full bg-google-surface-high flex items-center justify-center flex-shrink-0 text-google-text">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+                                <path fillRule="evenodd" d="M15.75 1.5a6.75 6.75 0 00-6.651 7.906c-1.057.813-2.025 1.762-2.396 2.87l-.536 1.608-1.396.465a3.75 3.75 0 00-2 2L2.25 18V21a.75.75 0 00.75.75h2.25l1.08-1.08a3.75 3.75 0 100-5.303l1.838-.613.56-1.68c.245-.734.796-1.372 1.5-1.74l.43-.215A6.75 6.75 0 1015.75 1.5zM12.985 8.441a2.25 2.25 0 113.196 3.018 2.25 2.25 0 01-3.196-3.018z" clipRule="evenodd" />
+                            </svg>
                         </div>
                         <div className="flex-1">
                             <h3 className="text-xl font-medium text-google-text">Gemini API Key</h3>
@@ -257,8 +259,10 @@ const SettingsView = () => {
                 {/* Model Selection Section */}
                 <section className="bg-google-surface rounded-3xl p-6 border border-google-surface-high">
                     <div className="flex items-start gap-5 mb-6">
-                        <div className="w-12 h-12 rounded-full bg-google-surface-high flex items-center justify-center flex-shrink-0">
-                            <span className="text-2xl">⚡</span>
+                        <div className="w-12 h-12 rounded-full bg-google-surface-high flex items-center justify-center flex-shrink-0 text-google-text">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+                                <path fillRule="evenodd" d="M14.615 1.595a.75.75 0 01.359.852L12.982 9.75h7.268a.75.75 0 01.548 1.262l-10.5 11.25a.75.75 0 01-1.272-.71l1.992-7.302H3.75a.75.75 0 01-.548-1.262l10.5-11.25a.75.75 0 01.913-.143z" clipRule="evenodd" />
+                            </svg>
                         </div>
                         <div>
                             <h3 className="text-xl font-medium text-google-text">AI Model</h3>
@@ -317,8 +321,10 @@ const SettingsView = () => {
                 {/* System Status Section */}
                 <section className="bg-google-surface rounded-3xl p-6 border border-google-surface-high">
                     <div className="flex items-start gap-5 mb-6">
-                        <div className="w-12 h-12 rounded-full bg-google-surface-high flex items-center justify-center flex-shrink-0">
-                            <span className="text-2xl">⚙️</span>
+                        <div className="w-12 h-12 rounded-full bg-google-surface-high flex items-center justify-center flex-shrink-0 text-google-text">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+                                <path fillRule="evenodd" d="M11.828 2.25c-.916 0-1.699.663-1.85 1.567l-.091.549a.798.798 0 01-.517.608 7.45 7.45 0 00-.478.198.798.798 0 01-.796-.064l-.453-.324a1.875 1.875 0 00-2.416.2l-.043.044a1.875 1.875 0 00-.205 2.415l.323.454a.798.798 0 01.064.796 7.448 7.448 0 00-.198.478.798.798 0 01-.608.517l-.55.092a1.875 1.875 0 00-1.566 1.849v.06c0 .916.663 1.699 1.567 1.85l.549.091c.281.047.508.25.608.517.06.162.127.321.198.478a.798.798 0 01-.064.796l-.324.453a1.875 1.875 0 00.2 2.416l.044.043a1.875 1.875 0 002.415.205l.454-.323a.798.798 0 01.796-.064c.157.071.316.137.478.198.267.1.47.327.517.608l.092.55c.15.903.932 1.566 1.849 1.566h.06c.916 0 1.699-.663 1.85-1.567l.091-.549a.798.798 0 01.517-.608 7.45 7.45 0 00.478-.198.798.798 0 01.796.064l.453.324a1.875 1.875 0 002.416-.2l.043-.044a1.875 1.875 0 00.205-2.415l-.323-.454a.798.798 0 01-.064-.796c.071-.157.137-.316.198-.478.1-.267.327-.47.608-.517l.55-.092a1.875 1.875 0 001.566-1.849v-.06c0-.916-.663-1.699-1.567-1.85l-.549-.091a.798.798 0 01-.608-.517 7.45 7.45 0 00-.198-.478.798.798 0 01.064-.796l.324-.453a1.875 1.875 0 00-.2-2.416l-.044-.043a1.875 1.875 0 00-2.415-.205l-.454.323a.798.798 0 01-.796.064 7.448 7.448 0 00-.478-.198.798.798 0 01-.517-.608l-.092-.55a1.875 1.875 0 00-1.849-1.566h-.06zM12 15.75a3.75 3.75 0 100-7.5 3.75 3.75 0 000 7.5z" clipRule="evenodd" />
+                            </svg>
                         </div>
                         <div>
                             <h3 className="text-xl font-medium text-google-text">System Status</h3>
@@ -335,9 +341,8 @@ const SettingsView = () => {
                     </div>
                 </section>
 
-                {/* About Link */}
                 <div className="text-center pt-8 pb-4">
-                    <p className="text-xs text-google-text-secondary opacity-50">LyricVault v0.3.1 • Designed for Pixel</p>
+                    <p className="text-xs text-google-text-secondary opacity-50">LyricVault v0.3.2 &bull; Designed for Pixel</p>
                 </div>
             </main>
         </>

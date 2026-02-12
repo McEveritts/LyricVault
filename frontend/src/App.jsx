@@ -3,6 +3,7 @@ import API_BASE from './config/api';
 import MagicPaste from './components/MagicPaste';
 import LibraryGrid from './components/LibraryGrid';
 import Player from './components/Player';
+import VisualizerDeck from './components/VisualizerDeck';
 import LyricsOverlay from './components/LyricsOverlay';
 import Sidebar from './components/Sidebar';
 import ActivityView from './components/ActivityView';
@@ -36,6 +37,7 @@ export default function App() {
   // View State
   const [viewedSong, setViewedSong] = useState(null);
   const [showLyrics, setShowLyrics] = useState(false); // Overlay lyrics
+  const [showVisualizer, setShowVisualizer] = useState(false);
 
   // Web Audio API Setup
   React.useEffect(() => {
@@ -371,8 +373,10 @@ export default function App() {
       case 'playlists':
         return (
           <div className="flex items-center justify-center h-full text-google-text-secondary flex-col gap-4">
-            <div className="w-16 h-16 rounded-3xl bg-google-surface border border-google-surface-high flex items-center justify-center">
-              <span className="text-2xl opacity-50">🚧</span>
+            <div className="w-16 h-16 rounded-3xl bg-google-surface border border-google-surface-high flex items-center justify-center text-google-text-secondary">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8 opacity-50">
+                <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
+              </svg>
             </div>
             <h2 className="text-xl font-medium text-google-text capitalize">{activeTab}</h2>
             <p>This feature is coming soon to LyricVault Pro.</p>
@@ -425,7 +429,19 @@ export default function App() {
         setShuffleMode={setShuffleMode}
         repeatMode={repeatMode}
         setRepeatMode={setRepeatMode}
+        onToggleVisualizer={() => setShowVisualizer(!showVisualizer)}
+        showVisualizer={showVisualizer}
+        visualizerEnabled={Boolean(currentSong && analyser)}
       />
+
+      {showVisualizer && (
+        <VisualizerDeck
+          analyser={analyser}
+          isPlaying={isPlaying}
+          currentSong={currentSong}
+          onClose={() => setShowVisualizer(false)}
+        />
+      )}
       {rehydratingSongIds.length > 0 && (
         <div className="fixed top-6 right-6 z-[60] bg-google-surface/95 border border-google-surface-high rounded-2xl px-4 py-3 shadow-2xl backdrop-blur-md flex items-center gap-3">
           <span className="w-4 h-4 border-2 border-google-gold/40 border-t-google-gold rounded-full animate-spin"></span>

@@ -70,8 +70,11 @@ const DiscoveryView = ({ onIngest, onQueueNext, onAddToQueue }) => {
             <main className="flex-1 overflow-y-auto p-8">
                 <div className="max-w-6xl mx-auto">
                     {error && (
-                        <div className="mb-8 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 text-sm text-center">
-                            ⚠️ {error}
+                        <div className="mb-8 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 text-sm text-center flex items-center justify-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                                <path fillRule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
+                            </svg>
+                            {error}
                         </div>
                     )}
 
@@ -85,7 +88,9 @@ const DiscoveryView = ({ onIngest, onQueueNext, onAddToQueue }) => {
 
                     {!loading && results.length === 0 && !error && (
                         <div className="flex flex-col items-center justify-center py-32 opacity-30 text-google-text-secondary">
-                            <span className="text-6xl mb-6">🔍</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-24 h-24 mb-6">
+                                <path fillRule="evenodd" d="M10.5 3.75a6.75 6.75 0 100 13.5 6.75 6.75 0 000-13.5zM2.25 10.5a8.25 8.25 0 1114.59 5.28l4.69 4.69a.75.75 0 11-1.06 1.06l-4.69-4.69A8.25 8.25 0 012.25 10.5z" clipRule="evenodd" />
+                            </svg>
                             <p className="text-xl">Search to find music to ingest</p>
                         </div>
                     )}
@@ -191,8 +196,14 @@ const SearchResultItem = ({ result, onIngest, onQueueNext, onAddToQueue }) => {
                     {result.duration ? `${Math.floor(result.duration / 60)}:${(result.duration % 60).toString().padStart(2, '0')}` : '--:--'}
                 </div>
                 {/* Platform Badge */}
-                <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
-                    <span className="text-[10px]">{result.platform === 'youtube' ? '🔴' : result.platform === 'spotify' ? '🟢' : '🟠'}</span>
+                <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center border border-white/10 text-white">
+                    {result.platform === 'youtube' ? (
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" /></svg>
+                    ) : result.platform === 'spotify' ? (
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.48.66.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z" /></svg>
+                    ) : (
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M1.175 12.225c-.155 0-.294-.035-.418-.105A.827.827 0 0 1 .15 11.45c.07-.35.295-.565.675-.65 2.505-.595 5.25.92 6.8 3.52 1.25 2.1 1.225 4.505.025 6.075-.15.2-.24.475-.275.825.1.845.545 1.35 1.325 1.525.755.165 1.485-.145 2.175-.925 1.835-2.07 1.88-5.325.2-8.325-.56-1 .04-1.745.85-2.075 2.45-1 6.575-1.025 8.275 1.95.4 1.325-1.425 4.45-6.175 4.675-1.15.05-1.95.5-2.4 1.325-.8 1.475.05 2.525 1.7 2.625 6.95.425 10.9-4.8 10.325-7.925-.8-4.325-6.65-4.475-10.4-3.575-1.375.325-1.825-.375-1.625-1.425.6-3.15 4.35-4.575 8.4-3.1 1.05.375 1.625.325 1.8-.175.225-.6-.05-1.125-.8-1.4-5.2-1.9-9.875 0-10.475 3.325-1.025 5.675-1.1 7.4-.2 5.175-.48 1.205-.826 2.015-1.037 2.433z" /></svg>
+                    )}
                 </div>
             </div>
 
@@ -251,9 +262,9 @@ const SearchResultItem = ({ result, onIngest, onQueueNext, onAddToQueue }) => {
 const PlatformSelector = ({ selected, onChange }) => {
     const [isOpen, setIsOpen] = useState(false);
     const platforms = [
-        { id: 'youtube', label: 'YouTube', icon: '🔴', color: 'text-google-gold' },
-        { id: 'spotify', label: 'Spotify', icon: '🟢', color: 'text-[#1DB954]' },
-        { id: 'soundcloud', label: 'SoundCloud', icon: '🟠', color: 'text-[#FF5500]' },
+        { id: 'youtube', label: 'YouTube', icon: <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" /></svg>, color: 'text-google-gold' },
+        { id: 'spotify', label: 'Spotify', icon: <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.48.66.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z" /></svg>, color: 'text-[#1DB954]' },
+        { id: 'soundcloud', label: 'SoundCloud', icon: <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M1.175 12.225c-.155 0-.294-.035-.418-.105A.827.827 0 0 1 .15 11.45c.07-.35.295-.565.675-.65 2.505-.595 5.25.92 6.8 3.52 1.25 2.1 1.225 4.505.025 6.075-.15.2-.24.475-.275.825.1.845.545 1.35 1.325 1.525.755.165 1.485-.145 2.175-.925 1.835-2.07 1.88-5.325.2-8.325-.56-1 .04-1.745.85-2.075 2.45-1 6.575-1.025 8.275 1.95.4 1.325-1.425 4.45-6.175 4.675-1.15.05-1.95.5-2.4 1.325-.8 1.475.05 2.525 1.7 2.625 6.95.425 10.9-4.8 10.325-7.925-.8-4.325-6.65-4.475-10.4-3.575-1.375.325-1.825-.375-1.625-1.425.6-3.15 4.35-4.575 8.4-3.1 1.05.375 1.625.325 1.8-.175.225-.6-.05-1.125-.8-1.4-5.2-1.9-9.875 0-10.475 3.325-1.025 5.675-1.1 7.4-.2 5.175-.48 1.205-.826 2.015-1.037 2.433z" /></svg>, color: 'text-[#FF5500]' },
     ];
 
     const current = platforms.find(p => p.id === selected) || platforms[0];

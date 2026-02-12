@@ -46,17 +46,17 @@ const ActivityView = () => {
                 {/* System Stats Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <StatCard
-                        icon="🎵"
+                        icon={<svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" /></svg>}
                         label="Total Songs"
                         value={systemInfo.totalSongs}
                     />
                     <StatCard
-                        icon="💾"
+                        icon={<svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" /></svg>}
                         label="Storage Used"
                         value={systemInfo.totalStorage}
                     />
                     <StatCard
-                        icon="🕐"
+                        icon={<svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
                         label="Last Activity"
                         value={systemInfo.lastActivity || 'Never'}
                     />
@@ -74,7 +74,11 @@ const ActivityView = () => {
                     <div className="space-y-3">
                         {tasks.length === 0 ? (
                             <div className="text-center py-12 text-slate-500">
-                                <span className="text-4xl mb-4 block">📋</span>
+                                <span className="mb-4 block">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-10 h-10 mx-auto opacity-50">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </span>
                                 <p>No recent activity</p>
                                 <p className="text-sm">Ingest some songs to see activity here</p>
                             </div>
@@ -94,7 +98,7 @@ const ActivityView = () => {
 const StatCard = ({ icon, label, value }) => (
     <div className="bg-slate-900/50 border border-white/5 rounded-xl p-4">
         <div className="flex items-center gap-3">
-            <span className="text-2xl">{icon}</span>
+            <span className="text-2xl text-slate-400">{icon}</span>
             <div>
                 <p className="text-xs text-slate-500 uppercase tracking-wide">{label}</p>
                 <p className="text-lg font-bold text-white">{value}</p>

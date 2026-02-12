@@ -38,8 +38,10 @@ const MagicPaste = ({ onIngestSuccess }) => {
     return (
         <div className="w-full max-w-2xl mx-auto">
             <div className="text-center mb-8">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-google-surface-high mb-6 shadow-lg shadow-black/20">
-                    <span className="text-3xl">✨</span>
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-google-surface-high mb-6 shadow-lg shadow-black/20 text-google-text">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8">
+                        <path fillRule="evenodd" d="M9 4.5a.75.75 0 01.721.544l.813 2.846a3.75 3.75 0 002.576 2.576l2.846.813a.75.75 0 010 1.442l-2.846.813a3.75 3.75 0 00-2.576 2.576l-.813 2.846a.75.75 0 01-1.442 0l-.813-2.846a3.75 3.75 0 00-2.576-2.576l-2.846-.813a.75.75 0 010-1.442l2.846-.813a3.75 3.75 0 002.576-2.576l.813-2.846A.75.75 0 019 4.5zM9 15a.75.75 0 01.75.75v1.5h1.5a.75.75 0 010 1.5h-1.5v1.5a.75.75 0 01-1.5 0v-1.5h-1.5a.75.75 0 010-1.5h1.5v-1.5A.75.75 0 019 15z" clipRule="evenodd" />
+                    </svg>
                 </div>
                 <h2 className="text-4xl font-normal text-google-text tracking-tight mb-3">
                     Magic Paste
@@ -81,8 +83,11 @@ const MagicPaste = ({ onIngestSuccess }) => {
             </form>
 
             {error && (
-                <div className="mt-6 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-300 text-sm text-center max-w-xl mx-auto">
-                    ⚠️ {error}
+                <div className="mt-6 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-300 text-sm text-center max-w-xl mx-auto flex items-center justify-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                        <path fillRule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
+                    </svg>
+                    {error}
                 </div>
             )}
         </div>

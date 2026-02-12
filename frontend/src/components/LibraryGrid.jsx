@@ -57,8 +57,10 @@ const LibraryGrid = ({ refreshTrigger, rehydratingSongIds = [], onPlay, onQueueN
     if (songs.length === 0) {
         return (
             <div className="text-center py-24 border border-dashed border-google-surface-high rounded-[2.5rem] bg-google-surface/30 backdrop-blur-sm">
-                <div className="w-20 h-20 bg-google-surface-high rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner">
-                    <span className="text-3xl opacity-40">💿</span>
+                <div className="w-20 h-20 bg-google-surface-high rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner text-google-text-secondary">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-10 h-10 opacity-40">
+                        <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
+                    </svg>
                 </div>
                 <h3 className="text-xl font-medium text-google-text mb-2">Your library is empty</h3>
                 <p className="text-google-text-secondary text-sm max-w-sm mx-auto opacity-70">
@@ -126,8 +128,10 @@ const LibraryGrid = ({ refreshTrigger, rehydratingSongIds = [], onPlay, onQueueN
                                         className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                                     />
                                 ) : (
-                                    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-google-surface-high to-google-surface">
-                                        <span className="text-6xl opacity-20">🎵</span>
+                                    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-google-surface-high to-google-surface text-google-text-secondary">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-16 h-16 opacity-20">
+                                            <path fillRule="evenodd" d="M19.952 1.651a.75.75 0 01.298.599V16.303a3 3 0 01-2.176 5.963l-1.385-.558a2.5 2.5 0 01-.132.062 4.418 4.418 0 01-4.041-.275l-4.731-2.583a2.49 2.49 0 01-1.282-2.193v-4.838a2.5 2.5 0 01.666-1.696l4.205-4.485C11.97 5.253 12.68 4.966 13.433 5c-.171-.235-.348-.465-.533-.687l-2.027-2.285A2.49 2.49 0 0110.198.243l6.502-3.82a.75.75 0 111.96.98l-3.326 1.954c.78.293 1.554.806 2.193 1.484l2.425 .81z" clipRule="evenodd" />
+                                        </svg>
                                     </div>
                                 )}
 
