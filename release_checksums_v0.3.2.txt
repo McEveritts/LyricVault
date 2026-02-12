@@ -1,2 +1,2 @@
-3393e4c35c90fc990e731be737a7fc8d9f28a14fcbf526f95c50ae612b07afbd *LyricVault Setup 0.3.2.exe
-ccdc2f082c4c5f8f78d0509acfe2edb6b8ed3a4d7f2ebaaae535c6d29fc91301 *LyricVault 0.3.2.exe
+31a3b353eb7ce8a14d79f7ecbb6f5f5e87b53d6d2e8f1e8f704fd82418043cc1 *LyricVault Setup 0.3.2.exe
+94e5a3bc16300eacf9b03a7516e0496741fd7ac78a58df39b03e6747388856d3 *LyricVault 0.3.2.exe
