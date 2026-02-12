@@ -144,12 +144,12 @@ const VisualizerDeck = ({ analyser, isPlaying, onClose, currentSong }) => {
                 const percent = value / 255;
                 const barHeight = (percent * height * 0.4);
 
-                // Use the Google Gold palette + white for high energy
-                const hue = 45 + (percent * 10); // Gold-ish
-                const sat = 80 + (percent * 20);
-                const light = 50 + (percent * 50); // Gets whiter as it gets louder
+                // Use the Google Gold palette (Hue ~42-54)
+                const hue = 42 + (percent * 12);
+                const sat = 85 + (percent * 10);
+                const light = 45 + (percent * 45);
 
-                const alpha = (0.7 + effectivePulse * 0.3);
+                const alpha = (0.8 + effectivePulse * 0.2);
                 ctx.fillStyle = `hsla(${hue}, ${sat}%, ${light}%, ${alpha})`;
 
                 // Draw right side

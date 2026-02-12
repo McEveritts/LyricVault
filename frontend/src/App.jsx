@@ -406,9 +406,7 @@ export default function App() {
       <div className="fixed top-0 left-1/4 w-[800px] h-[800px] bg-google-gold/5 rounded-full blur-[128px] pointer-events-none z-0 opacity-20 animate-pulse-slow"></div>
       <div className="fixed bottom-0 right-1/4 w-[600px] h-[600px] bg-indigo-500/5 rounded-full blur-[128px] pointer-events-none z-0 opacity-20 animate-float"></div>
 
-      const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
-      // ... (existing handlers)
 
       {/* Sidebar */}
       <Sidebar

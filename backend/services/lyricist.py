@@ -10,6 +10,7 @@ Lyric fetching chain:
 import syncedlyrics
 import re
 from .gemini_service import gemini_service
+from utils.lrc_validator import validate_lrc
 
 class LyricistService:
     def __init__(self):
@@ -41,14 +42,14 @@ class LyricistService:
         # === Step 1: Try syncedlyrics ===
         if status_callback: status_callback("Searching lyric databases...")
         lyrics = self._try_syncedlyrics(track_name, artist_name, status_callback)
-        if lyrics:
+        if lyrics and validate_lrc(lyrics):
             return lyrics
         
         # === Step 2: Try Gemini AI research ===
-        print(f"syncedlyrics failed, trying Gemini research...")
+        print(f"syncedlyrics failed or invalid, trying Gemini research...")
         if status_callback: status_callback("Databases failed. Researching with AI...")
         lyrics = self._try_gemini_research(track_name, artist_name, status_callback)
-        if lyrics:
+        if lyrics and validate_lrc(lyrics):
             return lyrics
         
         # === Step 3: Try Gemini audio transcription ===
@@ -56,7 +57,7 @@ class LyricistService:
             print(f"Gemini research failed, trying audio transcription...")
             if status_callback: status_callback("Research failed. Listening to audio...")
             lyrics = self._try_gemini_transcription(file_path, track_name, artist_name, status_callback)
-            if lyrics:
+            if lyrics and validate_lrc(lyrics):
                 return lyrics
         
         print(f"All lyric sources exhausted for: {track_name}")
@@ -79,6 +80,11 @@ class LyricistService:
             try:
                 lrc = syncedlyrics.search(term)
                 if lrc:
+                    # Validate immediately? Or let main loop do it. 
+                    # Main loop does it, but we could do it here to retry other terms?
+                    # Minimal change: let main loop handle validation failure by proceeding to next source.
+                    # But syncedlyrics usually returns one result. If it's invalid, we probably want to try next source, not next term?
+                    # Syncedlyrics usually returns good LRC or nothing.
                     print(f"[syncedlyrics] Found lyrics!")
                     return lrc
             except Exception as e:

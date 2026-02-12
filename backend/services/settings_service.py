@@ -120,6 +120,51 @@ def delete_gemini_api_key():
     _save_settings(settings)
 
 
+def get_genius_api_key() -> str | None:
+    """
+    Retrieve the Genius API key priority:
+    1. User-configured key in settings.json
+    2. GENIUS_ACCESS_TOKEN environment variable
+    """
+    settings = _load_settings()
+    stored_key = settings.get("genius_api_key")
+    if stored_key:
+        try:
+            key = _normalize_api_key(_deobfuscate(stored_key))
+        except Exception:
+            key = _normalize_api_key(stored_key)
+        
+        if key:
+            # Important: Export to env for syncedlyrics to use automatically
+            os.environ["GENIUS_ACCESS_TOKEN"] = key
+            return key
+
+    env_key = _normalize_api_key(os.getenv("GENIUS_ACCESS_TOKEN"))
+    if env_key:
+        return env_key
+    return None
+
+
+def set_genius_api_key(key: str):
+    """Save a Genius API key to persistent settings."""
+    normalized = _normalize_api_key(key)
+    if not normalized:
+        raise ValueError("API key cannot be empty")
+    settings = _load_settings()
+    settings["genius_api_key"] = _obfuscate(normalized)
+    _save_settings(settings)
+    # Update env immediately for current process
+    os.environ["GENIUS_ACCESS_TOKEN"] = normalized
+
+
+def delete_genius_api_key():
+    """Remove the stored Genius API key."""
+    settings = _load_settings()
+    settings.pop("genius_api_key", None)
+    _save_settings(settings)
+    os.environ.pop("GENIUS_ACCESS_TOKEN", None)
+
+
 def has_gemini_api_key() -> bool:
     """Check whether any Gemini API key is available."""
     return get_gemini_api_key() is not None

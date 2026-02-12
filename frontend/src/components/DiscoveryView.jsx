@@ -121,36 +121,22 @@ const SearchResultItem = ({ result, onIngest, onQueueNext, onAddToQueue }) => {
     const resolveSongFromJob = async (jobId, maxAttempts = 45) => {
         for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
             const taskRes = await fetch(`${API_BASE}/tasks/${jobId}`);
-            if (!taskRes.ok) {
-                throw new Error(`Failed to read job ${jobId} (${taskRes.status})`);
-            }
-
+            if (!taskRes.ok) throw new Error(`Failed to read job ${jobId}`);
             const task = await taskRes.json();
             if (task.status === 'completed') {
                 let songId = null;
                 try {
                     const resultData = JSON.parse(task.result_json || '{}');
                     songId = resultData.song_id;
-                } catch {
-                    songId = null;
-                }
-
+                } catch { songId = null; }
                 if (!songId) return null;
-
                 const songRes = await fetch(`${API_BASE}/song/${songId}`);
-                if (!songRes.ok) {
-                    throw new Error(`Failed to fetch ingested song ${songId} (${songRes.status})`);
-                }
+                if (!songRes.ok) throw new Error(`Failed to fetch song ${songId}`);
                 return await songRes.json();
             }
-
-            if (task.status === 'failed') {
-                throw new Error(task.last_error || 'Ingest job failed');
-            }
-
+            if (task.status === 'failed') throw new Error(task.last_error || 'Ingest job failed');
             await wait(1000);
         }
-
         return null;
     };
 
@@ -162,20 +148,14 @@ const SearchResultItem = ({ result, onIngest, onQueueNext, onAddToQueue }) => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ url: result.url }),
             });
-            if (!response.ok) {
-                throw new Error(`Ingest failed (${response.status})`);
-            }
-
+            if (!response.ok) throw new Error(`Ingest failed`);
             const jobData = await response.json();
             if (onIngest) onIngest();
-
             if (actionType === 'queueNext' || actionType === 'addToQueue') {
                 const callback = actionType === 'queueNext' ? onQueueNext : onAddToQueue;
                 if (callback && jobData?.id) {
                     const songData = await resolveSongFromJob(jobData.id);
-                    if (songData) {
-                        callback(songData);
-                    }
+                    if (songData) callback(songData);
                 }
             }
         } catch (err) {
@@ -188,95 +168,58 @@ const SearchResultItem = ({ result, onIngest, onQueueNext, onAddToQueue }) => {
     return (
         <div className="bg-google-surface hover:bg-google-surface-high border border-white/5 rounded-[2rem] p-4 transition-all group relative overflow-hidden flex flex-col h-full shadow-lg hover:shadow-google-gold/5">
             <div className="aspect-video rounded-2xl overflow-hidden mb-4 bg-black/40 relative">
-                <img
-                    src={result.thumbnail}
-                    alt={result.title}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                />
+                <img src={result.thumbnail} alt={result.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                 <div className="absolute top-2 right-2 px-2 py-1 rounded-lg bg-black/60 backdrop-blur-md text-[10px] font-bold text-white uppercase tracking-widest border border-white/10">
                     {result.duration ? `${Math.floor(result.duration / 60)}:${(result.duration % 60).toString().padStart(2, '0')}` : '--:--'}
                 </div>
-                {/* Platform Badge */}
                 <div className="absolute top-2 left-2 px-2 py-1 rounded-full bg-black/60 backdrop-blur-md flex items-center gap-1.5 border border-white/10 text-white shadow-lg">
-                    {result.platform === 'youtube' ? (
-                        <>
-                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" /></svg>
-                            <span className="text-[10px] font-bold uppercase tracking-wide">YouTube</span>
-                        </>
-                    ) : result.platform === 'spotify' ? (
-                        <>
-                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.48.66.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z" /></svg>
-                            <span className="text-[10px] font-bold uppercase tracking-wide">Spotify</span>
-                        </>
-                    ) : result.platform === 'soundcloud' ? (
-                        <>
-                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M1.175 12.225c-.155 0-.294-.035-.418-.105A.827.827 0 0 1 .15 11.45c.07-.35.295-.565.675-.65 2.505-.595 5.25.92 6.8 3.52 1.25 2.1 1.225 4.505.025 6.075-.15.2-.24.475-.275.825.1.845.545 1.35 1.325 1.525.755.165 1.485-.145 2.175-.925 1.835-2.07 1.88-5.325.2-8.325-.56-1 .04-1.745.85-2.075 2.45-1 6.575-1.025 8.275 1.95.4 1.325-1.425 4.45-6.175 4.675-1.15.05-1.95.5-2.4 1.325-.8 1.475.05 2.525 1.7 2.625 6.95.425 10.9-4.8 10.325-7.925-.8-4.325-6.65-4.475-10.4-3.575-1.375.325-1.825-.375-1.625-1.425.6-3.15 4.35-4.575 8.4-3.1 1.05.375 1.625.325 1.8-.175.225-.6-.05-1.125-.8-1.4-5.2-1.9-9.875 0-10.475 3.325-1.025 5.675-1.1 7.4-.2 5.175-.48 1.205-.826 2.015-1.037 2.433z" /></svg>
-                            <span className="text-[10px] font-bold uppercase tracking-wide">SoundCloud</span>
-                        </>
-                    ) : result.platform === 'tiktok' ? (
-                        <>
-                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.03 5.91-.05 8.81-.4 2.91-2.9 5.35-5.8 5.63-2.95.29-5.93-.56-8.15-2.41-1.93-1.61-2.51-4.26-1.57-6.53.94-2.27 3.32-3.79 5.79-3.71v4.07c-1.25.12-2.39 1.07-2.6 2.31-.22 1.24.47 2.47 1.63 2.93 1.16.46 2.53.07 3.23-.98.71-1.06.56-2.44.57-3.7-.01-5.06-.01-10.12 0-15.18h2.91v.01z" /></svg>
-                            <span className="text-[10px] font-bold uppercase tracking-wide">TikTok</span>
-                        </>
-                    ) : (
-                        <>
-                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.069-4.85.069-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" /></svg>
-                            <span className="text-[10px] font-bold uppercase tracking-wide">Instagram</span>
-                        </>
-                    )}
+                    {result.platform === 'youtube' && <><svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" /></svg><span className="text-[10px] font-bold uppercase tracking-wide">YouTube</span></>}
+                    {result.platform === 'spotify' && <><svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.48.66.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z" /></svg><span className="text-[10px] font-bold uppercase tracking-wide">Spotify</span></>}
+                    {result.platform === 'soundcloud' && <><svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M1.175 12.225c-.155 0-.294-.035-.418-.105A.827.827 0 0 1 .15 11.45c.07-.35.295-.565.675-.65 2.505-.595 5.25.92 6.8 3.52 1.25 2.1 1.225 4.505.025 6.075-.15.2-.24.475-.275.825.1.845.545 1.35 1.325 1.525.755.165 1.485-.145 2.175-.925 1.835-2.07 1.88-5.325.2-8.325-.56-1 .04-1.745.85-2.075 2.45-1 6.575-1.025 8.275 1.95.4 1.325-1.425 4.45-6.175 4.675-1.15.05-1.95.5-2.4 1.325-.8 1.475.05 2.525 1.7 2.625 6.95.425 10.9-4.8 10.325-7.925-.8-4.325-6.65-4.475-10.4-3.575-1.375.325-1.825-.375-1.625-1.425.6-3.15 4.35-4.575 8.4-3.1 1.05.375 1.625.325 1.8-.175.225-.6-.05-1.125-.8-1.4-5.2-1.9-9.875 0-10.475 3.325-1.025 5.675-1.1 7.4-.2 5.175-.48 1.205-.826 2.015-1.037 2.433z" /></svg><span className="text-[10px] font-bold uppercase tracking-wide">SoundCloud</span></>}
+                    {result.platform === 'tiktok' && <><svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.03 5.91-.05 8.81-.4 2.91-2.9 5.35-5.8 5.63-2.95.29-5.93-.56-8.15-2.41-1.93-1.61-2.51-4.26-1.57-6.53.94-2.27 3.32-3.79 5.79-3.71v4.07c-1.25.12-2.39 1.07-2.6 2.31-.22 1.24.47 2.47 1.63 2.93 1.16.46 2.53.07 3.23-.98.71-1.06.56-2.44.57-3.7-.01-5.06-.01-10.12 0-15.18h2.91v.01z" /></svg><span className="text-[10px] font-bold uppercase tracking-wide">TikTok</span></>}
+                    {result.platform === 'instagram' && <><svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.069-4.85.069-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" /></svg><span className="text-[10px] font-bold uppercase tracking-wide">Instagram</span></>}
+                    {result.platform === 'facebook' && <><svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" /></svg><span className="text-[10px] font-bold uppercase tracking-wide">Facebook</span></>}
                 </div>
-            </div>
-
-            <div className="flex-1">
-                <h4 className="text-base font-bold text-google-text line-clamp-2 leading-tight mb-1">{result.title}</h4>
-                <p className="text-xs text-google-text-secondary truncate font-medium">{result.artist}</p>
-            </div>
-
-            <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={() => handleAction('queueNext')}
-                        disabled={status !== 'idle'}
-                        className="w-8 h-8 rounded-full bg-white/5 hover:bg-google-gold hover:text-black flex items-center justify-center transition-all disabled:opacity-50"
-                        title="Play Next"
-                        aria-label="Play Next"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                            <path fillRule="evenodd" d="M2 10a.75.75 0 01.75-.75h12.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10z" clipRule="evenodd" />
-                            <path fillRule="evenodd" d="M10.22 5.22a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 01-1.06-1.06L13.94 10l-3.72-3.72a.75.75 0 010-1.06z" clipRule="evenodd" />
-                        </svg>
-                    </button>
-                    <button
-                        onClick={() => handleAction('addToQueue')}
-                        disabled={status !== 'idle'}
-                        className="w-8 h-8 rounded-full bg-white/5 hover:bg-white hover:text-black flex items-center justify-center transition-all disabled:opacity-50"
-                        title="Add to Queue"
-                        aria-label="Add to Queue"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                            <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
-                        </svg>
-                    </button>
-                </div>
-
                 <button
                     onClick={() => handleAction('ingest')}
                     disabled={status !== 'idle'}
-                    className={`px-4 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-2 ${status === 'ingesting'
-                        ? 'bg-google-surface-high text-google-text-secondary'
-                        : 'bg-white/5 text-white hover:bg-google-gold hover:text-black shadow-inner'
-                        }`}
+                    className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-google-gold text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 shadow-xl z-20"
                 >
                     {status === 'ingesting' ? (
-                        <>
-                            <span className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin"></span>
-                            <span>Adding...</span>
-                        </>
+                        <div className="w-6 h-6 border-2 border-black/30 border-t-black rounded-full animate-spin" />
                     ) : (
-                        <span>Add to Library</span>
+                        <svg className="w-7 h-7 ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
                     )}
                 </button>
             </div>
+
+            <h3 className="text-white font-medium truncate mb-1">{result.title}</h3>
+            <p className="text-google-text-secondary text-xs truncate mb-4">{result.uploader}</p>
+
+            <div className="flex items-center gap-2 mt-auto">
+                <button
+                    onClick={() => handleAction('queueNext')}
+                    disabled={status !== 'idle'}
+                    className="flex-1 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-medium text-white transition-colors"
+                >
+                    Play Next
+                </button>
+                <button
+                    onClick={() => handleAction('addToQueue')}
+                    disabled={status !== 'idle'}
+                    className="flex-1 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-medium text-white transition-colors"
+                >
+                    Add to Queue
+                </button>
+            </div>
+
+            {(status === 'queuing' || status === 'ingesting') && (
+                <div className="absolute inset-x-0 bottom-0 h-1 bg-google-gold/20">
+                    <div className="h-full bg-google-gold animate-progress" style={{ width: '100%' }}></div>
+                </div>
+            )}
         </div>
     );
 };
@@ -288,7 +231,8 @@ const PlatformSelector = ({ selected, onChange }) => {
         { id: 'spotify', label: 'Spotify', icon: <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.48.66.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z" /></svg>, color: 'text-[#1DB954]' },
         { id: 'soundcloud', label: 'SoundCloud', icon: <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M1.175 12.225c-.155 0-.294-.035-.418-.105A.827.827 0 0 1 .15 11.45c.07-.35.295-.565.675-.65 2.505-.595 5.25.92 6.8 3.52 1.25 2.1 1.225 4.505.025 6.075-.15.2-.24.475-.275.825.1.845.545 1.35 1.325 1.525.755.165 1.485-.145 2.175-.925 1.835-2.07 1.88-5.325.2-8.325-.56-1 .04-1.745.85-2.075 2.45-1 6.575-1.025 8.275 1.95.4 1.325-1.425 4.45-6.175 4.675-1.15.05-1.95.5-2.4 1.325-.8 1.475.05 2.525 1.7 2.625 6.95.425 10.9-4.8 10.325-7.925-.8-4.325-6.65-4.475-10.4-3.575-1.375.325-1.825-.375-1.625-1.425.6-3.15 4.35-4.575 8.4-3.1 1.05.375 1.625.325 1.8-.175.225-.6-.05-1.125-.8-1.4-5.2-1.9-9.875 0-10.475 3.325-1.025 5.675-1.1 7.4-.2 5.175-.48 1.205-.826 2.015-1.037 2.433z" /></svg>, color: 'text-[#FF5500]' },
         { id: 'tiktok', label: 'TikTok', icon: <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.03 5.91-.05 8.81-.4 2.91-2.9 5.35-5.8 5.63-2.95.29-5.93-.56-8.15-2.41-1.93-1.61-2.51-4.26-1.57-6.53.94-2.27 3.32-3.79 5.79-3.71v4.07c-1.25.12-2.39 1.07-2.6 2.31-.22 1.24.47 2.47 1.63 2.93 1.16.46 2.53.07 3.23-.98.71-1.06.56-2.44.57-3.7-.01-5.06-.01-10.12 0-15.18h2.91v.01z" /></svg>, color: 'text-[#FE2C55]' },
-        { id: 'instagram', label: 'Instagram', icon: <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.069-4.85.069-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" /></svg>, color: 'text-[#E1306C]' },
+        { id: 'instagram', label: 'Instagram', icon: <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.069-4.85.069-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" /></svg>, color: 'text-[#E1306C]' },
+        { id: 'facebook', label: 'Facebook', icon: <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" /></svg>, color: 'text-[#1877F2]' },
     ];
 
     const current = platforms.find(p => p.id === selected) || platforms[0];

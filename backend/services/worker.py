@@ -414,15 +414,8 @@ class Worker:
                 song.lyrics = lyrics
                 song.lyrics_synced = True
                 job.result_json = json.dumps({"status": "found"})
-            elif lyrics:
-                # Found something, but it wasn't valid LRC (plain text or garbage)
-                # We strictly REJECT this for the "ready" state.
-                # We can store it as unsynced if we want, but requirements say "Persist readiness only on valid LRC"
-                # For now, we'll save it but mark as unsynced, effectively "unavailable" in UI.
-                song.lyrics = lyrics
-                song.lyrics_synced = False
-                job.result_json = json.dumps({"status": "found_unsynced"})
             else:
+                # Strictly reject unsynced/plain text lyrics
                 song.lyrics = "Lyrics not found."
                 song.lyrics_synced = False
                 job.result_json = json.dumps({"status": "not_found"})
