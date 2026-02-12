@@ -17,7 +17,7 @@ const ProcessingView = () => {
                 }
 
                 // Fetch active tasks for live progress
-                const taskRes = await fetch(`${API_BASE}/tasks`);
+                const taskRes = await fetch(`${API_BASE}/jobs/active`);
                 if (taskRes.ok) {
                     const data = await taskRes.json();
                     setTasks(data);

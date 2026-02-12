@@ -10,27 +10,32 @@ const ActivityView = () => {
     });
 
     useEffect(() => {
-        // Fetch library to get stats
-        fetch(`${API_BASE}/library`)
-            .then(res => res.json())
-            .then(data => {
-                setSystemInfo(prev => ({
-                    ...prev,
-                    totalSongs: data.length,
-                    lastActivity: new Date().toLocaleTimeString()
-                }));
+        const fetchData = async () => {
+            try {
+                // Fetch library stats
+                const libRes = await fetch(`${API_BASE}/library`);
+                if (libRes.ok) {
+                    const data = await libRes.json();
+                    setSystemInfo(prev => ({
+                        ...prev,
+                        totalSongs: data.length,
+                        lastActivity: new Date().toLocaleTimeString()
+                    }));
+                }
 
-                // Create activity log from songs
-                const activities = data.map(song => ({
-                    id: song.id,
-                    type: song.lyrics_status === 'ready' ? 'completed' : 'processing',
-                    title: `Lyrics for "${song.title}"`,
-                    status: song.lyrics_status === 'ready' ? 'Completed' : 'Processing',
-                    timestamp: 'Recently'
-                }));
-                setTasks(activities);
-            })
-            .catch(err => console.error('Failed to fetch library:', err));
+                // Fetch real job history
+                const jobsRes = await fetch(`${API_BASE}/jobs/history`);
+                if (jobsRes.ok) {
+                    const data = await jobsRes.json();
+                    setTasks(data);
+                }
+            } catch (error) {
+                console.error("Failed to load activity view:", error);
+            }
+        };
+        fetchData();
+        const interval = setInterval(fetchData, 5000);
+        return () => clearInterval(interval);
     }, []);
 
     return (
@@ -67,7 +72,7 @@ const ActivityView = () => {
                     <div className="flex items-center gap-3 mb-4">
                         <h3 className="text-lg font-semibold text-white">Recent Tasks</h3>
                         <span className="px-2 py-0.5 text-xs bg-purple-600/20 text-purple-400 rounded-full">
-                            {tasks.filter(t => t.type === 'processing').length} active
+                            {tasks.length} entries
                         </span>
                     </div>
 
@@ -109,24 +114,35 @@ const StatCard = ({ icon, label, value }) => (
 
 const TaskItem = ({ task }) => (
     <div className="bg-slate-900/50 border border-white/5 rounded-xl p-4 flex items-center gap-4">
-        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${task.type === 'completed' ? 'bg-green-500/20' : 'bg-yellow-500/20'
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${task.status === 'completed' ? 'bg-green-500/20' : 'bg-red-500/20'
             }`}>
-            {task.type === 'completed' ? (
+            {task.status === 'completed' ? (
                 <svg className="w-5 h-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
             ) : (
-                <svg className="w-5 h-5 text-yellow-400 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                <svg className="w-5 h-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
             )}
         </div>
         <div className="flex-1">
-            <p className="text-white font-medium">{task.title}</p>
-            <p className="text-slate-500 text-sm">{task.status}</p>
+            <p className="text-white font-medium truncate">{task.title}</p>
+            <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500 uppercase">{task.type}</span>
+                <span className={`text-xs capitalize ${task.status === 'completed' ? 'text-green-500' : 'text-red-500'}`}>
+                    {task.status}
+                </span>
+            </div>
         </div>
-        <span className="text-xs text-slate-600">{task.timestamp}</span>
+        <div className="text-right">
+            <span className="text-xs text-slate-600 block">
+                {new Date(task.updated_at || task.created_at).toLocaleTimeString()}
+            </span>
+            <span className="text-[10px] text-slate-700 block">
+                {new Date(task.updated_at || task.created_at).toLocaleDateString()}
+            </span>
+        </div>
     </div>
 );
 

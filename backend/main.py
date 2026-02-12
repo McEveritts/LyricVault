@@ -184,7 +184,8 @@ def _active_lyrics_song_ids(db: Session) -> set[int]:
 
 
 def _lyrics_status(song: models.Song, processing_song_ids: set[int]) -> str:
-    if song.lyrics and song.lyrics != "Lyrics not found.":
+    # STRICT: Only return "ready" if we have valid time-synced lyrics.
+    if song.lyrics_synced:
         return "ready"
     if song.id in processing_song_ids:
         return "processing"
@@ -378,6 +379,20 @@ async def research_lyrics_manual(song_id: int, request: ResearchRequest, db: Ses
         return {"status": "success", "lyrics": lyrics}
     return {"status": "failed", "message": "AI could not find or transcribe lyrics."}
 
+@app.get("/jobs/active")
+def list_active_jobs(db: Session = Depends(get_db)):
+    """Return only active jobs (pending, processing, retrying) for the Processing Queue."""
+    return db.query(models.Job).filter(
+        models.Job.status.in_(["pending", "processing", "retrying"])
+    ).order_by(models.Job.created_at.asc()).all()
+
+@app.get("/jobs/history")
+def list_job_history(db: Session = Depends(get_db)):
+    """Return only completed/failed jobs for the Activity Log."""
+    return db.query(models.Job).filter(
+        models.Job.status.in_(["completed", "failed"])
+    ).order_by(models.Job.updated_at.desc()).limit(50).all()
+
 @app.get("/tasks")
 @app.get("/jobs")
 def list_jobs(status: str = None, db: Session = Depends(get_db)):
@@ -528,6 +543,35 @@ def test_gemini_key(request: ApiKeyRequest):
         return {"status": "success", "message": "API key is valid!"}
     else:
         raise HTTPException(status_code=400, detail="Invalid API key")
+
+@app.get("/settings/genius-key")
+def get_genius_key_status():
+    key = settings_service.get_genius_api_key()
+    if key:
+        masked = key[:4] + "*" * (max(0, len(key) - 8)) + key[-4:] if len(key) > 8 else "****"
+        return {"configured": True, "masked_key": masked}
+    return {"configured": False, "masked_key": None}
+
+@app.post("/settings/genius-key")
+def save_genius_key(request: ApiKeyRequest):
+    key = request.api_key.strip()
+    if not key:
+        raise HTTPException(status_code=400, detail="API key cannot be empty")
+    # Genius keys are typically 64 chars alphanumeric, but we'll just check non-empty
+    try:
+        settings_service.set_genius_api_key(key)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save API key: {e}")
+    # Force reload of lyricist service if needed (currently it reads env/settings on demand)
+    return {"status": "saved", "message": "Genius API key saved successfully"}
+
+@app.delete("/settings/genius-key")
+def delete_genius_key():
+    try:
+        settings_service.delete_genius_api_key()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to remove API key: {e}")
+    return {"status": "deleted", "message": "API key removed"}
 
 @app.get("/settings/models")
 def get_models():

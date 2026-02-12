@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import API_BASE from '../config/api';
 
-const LibraryGrid = ({ refreshTrigger, rehydratingSongIds = [], onPlay, onQueueNext, onAddToQueue, onView }) => {
+const LibraryGrid = ({ refreshTrigger, rehydratingSongIds = [], onPlay, onQueueNext, onAddToQueue, onView, recentOnly = false }) => {
     const [songs, setSongs] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [sortBy, setSortBy] = useState('date_added'); // title, artist, date_added
+    const [isSortOpen, setIsSortOpen] = useState(false);
 
     useEffect(() => {
         let isMounted = true;
@@ -34,6 +35,11 @@ const LibraryGrid = ({ refreshTrigger, rehydratingSongIds = [], onPlay, onQueueN
     const filteredAndSortedSongs = useMemo(() => {
         let result = [...songs];
 
+        if (recentOnly) {
+            // For recent only, strictly sort by date added (newest first) and take top 4
+            return result.sort((a, b) => (b.id || 0) - (a.id || 0)).slice(0, 4);
+        }
+
         // Filter
         if (searchQuery.trim()) {
             const query = searchQuery.toLowerCase();
@@ -47,12 +53,18 @@ const LibraryGrid = ({ refreshTrigger, rehydratingSongIds = [], onPlay, onQueueN
         result.sort((a, b) => {
             if (sortBy === 'title') return a.title.localeCompare(b.title);
             if (sortBy === 'artist') return a.artist.localeCompare(b.artist);
-            if (sortBy === 'date_added') return (b.id || 0) - (a.id || 0); // Assuming higher ID is newer
+            if (sortBy === 'date_added') return (b.id || 0) - (a.id || 0);
             return 0;
         });
 
         return result;
-    }, [songs, searchQuery, sortBy]);
+    }, [songs, searchQuery, sortBy, recentOnly]);
+
+    const sortOptions = {
+        'date_added': 'Recently Added',
+        'title': 'Title',
+        'artist': 'Artist'
+    };
 
     if (songs.length === 0) {
         return (
@@ -72,43 +84,61 @@ const LibraryGrid = ({ refreshTrigger, rehydratingSongIds = [], onPlay, onQueueN
 
     return (
         <div className="space-y-8 animate-in fade-in duration-700">
-            {/* Library Header / Controls */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-google-surface/40 p-6 rounded-[2rem] border border-white/5 backdrop-blur-xl">
-                <div className="relative flex-1 max-w-md group">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-google-text-secondary pointer-events-none group-focus-within:text-google-gold transition-colors">
-                        <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clipRule="evenodd" />
-                    </svg>
-                    <input
-                        type="text"
-                        placeholder="Search your library..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full bg-google-surface-high/50 border-none rounded-2xl py-3 pl-11 pr-4 text-sm text-google-text placeholder-google-text-secondary/40 focus:ring-2 focus:ring-google-gold/30 focus:outline-none transition-all"
-                    />
-                </div>
+            {/* Library Header / Controls - Only shown when NOT recentOnly */}
+            {!recentOnly && (
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-google-surface/40 p-3 rounded-[2rem] border border-white/5 backdrop-blur-xl pl-6">
+                    <div className="relative flex-1 max-w-md group">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-google-text-secondary pointer-events-none group-focus-within:text-google-gold transition-colors">
+                            <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clipRule="evenodd" />
+                        </svg>
+                        <input
+                            type="text"
+                            placeholder="Search your library..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full bg-google-surface-high/50 border-none rounded-2xl py-3 pl-11 pr-4 text-sm text-google-text placeholder-google-text-secondary/40 focus:ring-2 focus:ring-google-gold/30 focus:outline-none transition-all"
+                        />
+                    </div>
 
-                <div className="flex items-center gap-3">
-                    <span className="text-xs font-bold text-google-text-secondary uppercase tracking-widest opacity-60">Sort By</span>
-                    <select
-                        value={sortBy}
-                        onChange={(e) => setSortBy(e.target.value)}
-                        className="bg-google-surface-high/50 border-none rounded-2xl py-3 px-6 text-sm text-google-text font-medium focus:ring-2 focus:ring-google-gold/30 focus:outline-none cursor-pointer appearance-none pr-10 relative"
-                        style={{
-                            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23E2E2E6'%3E%3Cpath fill-rule='evenodd' d='M5.23 7.21l4.47 4.48a.75.75 0 001.06 0l4.47-4.48a.75.75 0 111.06 1.06l-5 5a.75.75 0 01-1.06 0l-5-5a.75.75 0 111.06-1.06z' clip-rule='evenodd'/%3E%3C/svg%3E")`,
-                            backgroundRepeat: 'no-repeat',
-                            backgroundPosition: 'right 1rem center',
-                            backgroundSize: '1.25rem'
-                        }}
-                    >
-                        <option value="date_added">Recently Added</option>
-                        <option value="title">Title</option>
-                        <option value="artist">Artist</option>
-                    </select>
+                    <div className="flex items-center gap-3 relative z-20">
+                        <span className="text-xs font-bold text-google-text-secondary uppercase tracking-widest opacity-60">Sort By</span>
+                        <div className="relative">
+                            <button
+                                onClick={() => setIsSortOpen(!isSortOpen)}
+                                className="bg-google-surface-high/50 hover:bg-google-surface-high rounded-2xl py-3 px-6 text-sm text-google-text font-medium flex items-center gap-2 min-w-[160px] justify-between transition-colors"
+                            >
+                                {sortOptions[sortBy]}
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={`w-4 h-4 transition-transform ${isSortOpen ? 'rotate-180' : ''}`}>
+                                    <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                                </svg>
+                            </button>
+
+                            {isSortOpen && (
+                                <>
+                                    <div className="fixed inset-0 z-10" onClick={() => setIsSortOpen(false)} />
+                                    <div className="absolute right-0 top-full mt-2 w-full bg-google-surface-high border border-white/5 rounded-2xl shadow-xl overflow-hidden z-20 flex flex-col p-1">
+                                        {Object.entries(sortOptions).map(([value, label]) => (
+                                            <button
+                                                key={value}
+                                                onClick={() => {
+                                                    setSortBy(value);
+                                                    setIsSortOpen(false);
+                                                }}
+                                                className={`text-left px-4 py-3 text-sm rounded-xl transition-colors ${sortBy === value ? 'bg-white/10 text-white font-medium' : 'text-google-text-secondary hover:text-white hover:bg-white/5'}`}
+                                            >
+                                                {label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-8">
+            <div className={`grid gap-8 ${recentOnly ? 'grid-cols-4' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5'}`}>
                 {filteredAndSortedSongs.map((song) => {
                     const isRehydrating = song.status === 're-downloading' || rehydratingSongIds.includes(song.id);
                     const isExpired = song.status === 'expired' && !isRehydrating;

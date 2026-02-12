@@ -107,6 +107,10 @@ class IngestionService:
             return "soundcloud"
         elif self._host_matches(host, "music.apple.com"):
             return "apple"
+        elif self._host_matches(host, "tiktok.com"):
+            return "tiktok"
+        elif self._host_matches(host, "instagram.com"):
+            return "instagram"
         return None
 
     def fetch_metadata_itunes(self, term: str, limit=1):
@@ -258,7 +262,9 @@ class IngestionService:
 
         search_prefix = {
             "youtube": "ytsearch5:",
-            "soundcloud": "scsearch5:"
+            "soundcloud": "scsearch5:",
+            "tiktok": "tiktoksearch5:",
+            "instagram": "instagramsearch5:"
         }.get(platform, "ytsearch5:")
 
         search_query = f"{search_prefix}{query}"

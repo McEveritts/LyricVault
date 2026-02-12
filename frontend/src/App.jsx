@@ -15,6 +15,7 @@ import DiscoveryView from './components/DiscoveryView';
 export default function App() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [activeTab, setActiveTab] = useState('home');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [rehydratingSongIds, setRehydratingSongIds] = useState([]);
 
   // Player State
@@ -38,6 +39,12 @@ export default function App() {
   const [viewedSong, setViewedSong] = useState(null);
   const [showLyrics, setShowLyrics] = useState(false); // Overlay lyrics
   const [showVisualizer, setShowVisualizer] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
+  const scrollRef = React.useRef(null);
+
+  const handleScroll = (e) => {
+    setIsScrolled(e.target.scrollTop > 20);
+  };
 
   // Web Audio API Setup
   React.useEffect(() => {
@@ -63,6 +70,7 @@ export default function App() {
 
   const handleIngestSuccess = () => {
     setRefreshKey(prev => prev + 1);
+    setActiveTab('processing');
   };
 
   const markRehydrating = (songId) => {
@@ -322,6 +330,7 @@ export default function App() {
                   onView={handleViewSong}
                   onQueueNext={handleQueueNext}
                   onAddToQueue={handleAddToQueue}
+                  recentOnly={true}
                 />
               </div>
             </main>
@@ -351,8 +360,12 @@ export default function App() {
             song={viewedSong}
             isPlaying={isPlaying && currentSong?.id === viewedSong?.id}
             onPlayPause={handleSongDetailPlayPause}
+            onNext={() => handleNext('manual')}
+            onPrevious={handlePrevious}
+            onSeek={handleSeek}
             onSongUpdated={handleSongUpdated}
             currentTime={currentSong?.id === viewedSong?.id ? currentTime : 0}
+            duration={currentSong?.id === viewedSong?.id ? duration : (viewedSong?.duration || 0)}
             analyser={analyser}
           />
         );
@@ -393,12 +406,21 @@ export default function App() {
       <div className="fixed top-0 left-1/4 w-[800px] h-[800px] bg-google-gold/5 rounded-full blur-[128px] pointer-events-none z-0 opacity-20 animate-pulse-slow"></div>
       <div className="fixed bottom-0 right-1/4 w-[600px] h-[600px] bg-indigo-500/5 rounded-full blur-[128px] pointer-events-none z-0 opacity-20 animate-float"></div>
 
+      const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+      // ... (existing handlers)
+
       {/* Sidebar */}
-      <Sidebar activeTab={activeTab === 'song-detail' ? 'library' : activeTab} onTabChange={setActiveTab} />
+      <Sidebar
+        activeTab={activeTab === 'song-detail' ? 'library' : activeTab}
+        onTabChange={setActiveTab}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+      />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden relative z-10 w-full">
-        <div className="flex-1 overflow-y-auto pb-32 scroll-smooth w-full">
+      <div className={`flex-1 flex flex-col h-screen overflow-hidden relative z-10 transition-all duration-300 ${isSidebarCollapsed ? 'w-[calc(100%-80px)]' : 'w-full'}`}>
+        <div className="flex-1 overflow-y-auto pb-32 scroll-smooth w-full" ref={scrollRef} onScroll={handleScroll}>
           {renderContent()}
         </div>
       </div>
@@ -443,7 +465,7 @@ export default function App() {
         />
       )}
       {rehydratingSongIds.length > 0 && (
-        <div className="fixed top-6 right-6 z-[60] bg-google-surface/95 border border-google-surface-high rounded-2xl px-4 py-3 shadow-2xl backdrop-blur-md flex items-center gap-3">
+        <div className={`fixed top-6 right-6 z-[60] bg-google-surface/95 border border-google-surface-high rounded-2xl px-4 py-3 shadow-2xl backdrop-blur-md flex items-center gap-3 transition-all duration-300 ${isScrolled ? 'opacity-0 translate-y-[-20px] pointer-events-none' : 'opacity-100 translate-y-0'}`}>
           <span className="w-4 h-4 border-2 border-google-gold/40 border-t-google-gold rounded-full animate-spin"></span>
           <div className="flex flex-col">
             <span className="text-sm font-semibold text-google-text">Preparing Audio...</span>

@@ -10,6 +10,7 @@ from database.database import SessionLocal
 from database import models
 from services.ingestor import ingestor
 from services.lyricist import lyricist
+from utils.lrc_validator import validate_lrc
 
 logger = logging.getLogger(__name__)
 
@@ -409,12 +410,21 @@ class Worker:
         
         song = db.get(models.Song, song_id)
         if song:
-            if lyrics:
+            if lyrics and validate_lrc(lyrics):
                 song.lyrics = lyrics
                 song.lyrics_synced = True
                 job.result_json = json.dumps({"status": "found"})
+            elif lyrics:
+                # Found something, but it wasn't valid LRC (plain text or garbage)
+                # We strictly REJECT this for the "ready" state.
+                # We can store it as unsynced if we want, but requirements say "Persist readiness only on valid LRC"
+                # For now, we'll save it but mark as unsynced, effectively "unavailable" in UI.
+                song.lyrics = lyrics
+                song.lyrics_synced = False
+                job.result_json = json.dumps({"status": "found_unsynced"})
             else:
                 song.lyrics = "Lyrics not found."
+                song.lyrics_synced = False
                 job.result_json = json.dumps({"status": "not_found"})
             db.commit()
 

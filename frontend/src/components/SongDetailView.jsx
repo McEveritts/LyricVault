@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import API_BASE from '../config/api';
 import Visualizer from './Visualizer';
 
-const SongDetailView = ({ song, isPlaying, onPlayPause, onSongUpdated, isEmpty, currentTime, analyser }) => {
+const SongDetailView = ({ song, isPlaying, onPlayPause, onNext, onPrevious, onSeek, onSongUpdated, isEmpty, currentTime, duration, analyser }) => {
     const [activeTab, setActiveTab] = useState('lyrics');
     const [researching, setResearching] = useState(false);
     const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash');
@@ -212,21 +212,54 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, onSongUpdated, isEmpty, 
                                 <Visualizer analyser={analyser} isPlaying={isPlaying} height={100} width={400} />
                             </div>
 
-                            <div className={`absolute inset-0 bg-black/20 flex items-center justify-center transition-opacity duration-300 ${isPlaying ? 'opacity-0 hover:opacity-100' : 'opacity-100'}`}>
-                                <button
-                                    onClick={onPlayPause}
-                                    className="w-20 h-20 bg-google-text text-google-bg rounded-full flex items-center justify-center hover:scale-110 transition-all shadow-xl shadow-black/30 backdrop-blur-md"
-                                >
-                                    {isPlaying ? (
+                            <div className={`absolute inset-0 bg-black/40 flex flex-col items-center justify-center transition-opacity duration-300 ${isPlaying ? 'opacity-0 hover:opacity-100' : 'opacity-100'}`}>
+                                <div className="flex items-center gap-6 mb-6">
+                                    <button onClick={(e) => { e.stopPropagation(); onPrevious(); }} className="text-white/70 hover:text-white transition-colors">
                                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-10 h-10">
-                                            <path fillRule="evenodd" d="M6.75 5.25a.75.75 0 01.75-.75H9a.75.75 0 01.75.75v13.5a.75.75 0 01-.75.75H7.5a.75.75 0 01-.75-.75V5.25zm7.5 0A.75.75 0 0115 4.5h1.5a.75.75 0 01.75.75v13.5a.75.75 0 01-.75.75H15a.75.75 0 01-.75-.75V5.25z" clipRule="evenodd" />
+                                            <path d="M9.195 18.44c1.25.713 2.805-.19 2.805-1.629v-2.873h8.17s.63 0 .63-.63v-2.616c0-.63-.63-.63-.63-.63h-8.17V7.19c0-1.438-1.555-2.342-2.805-1.628l-8.682 6.095c-1.178.507-1.178 2.059 0 2.566l8.682 4.217z" />
+                                            <path fillRule="evenodd" d="M3 12a.75.75 0 01.75-.75h16.5a.75.75 0 010 1.5H3.75A.75.75 0 013 12z" clipRule="evenodd" />
+                                            <path d="M20.25 5.25a.75.75 0 01.75.75v12a.75.75 0 01-1.5 0v-12a.75.75 0 01.75-.75zM3.937 11.293l8.682-6.095a2.025 2.025 0 013.13 1.702v10.2c0 1.629-1.88 2.443-3.13 1.701l-8.682-6.095c-1.179-.828-1.179-2.385 0-3.213z" />
                                         </svg>
-                                    ) : (
-                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-10 h-10 ml-1">
-                                            <path fillRule="evenodd" d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.348c1.295.712 1.295 2.573 0 3.285L7.28 19.991c-1.25.687-2.779-.217-2.779-1.643V5.653z" clipRule="evenodd" />
+                                    </button>
+
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); onPlayPause(); }}
+                                        className="w-20 h-20 bg-google-text text-google-bg rounded-full flex items-center justify-center hover:scale-110 transition-all shadow-xl shadow-black/30 backdrop-blur-md"
+                                    >
+                                        {isPlaying ? (
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-10 h-10">
+                                                <path fillRule="evenodd" d="M6.75 5.25a.75.75 0 01.75-.75H9a.75.75 0 01.75.75v13.5a.75.75 0 01-.75.75H7.5a.75.75 0 01-.75-.75V5.25zm7.5 0A.75.75 0 0115 4.5h1.5a.75.75 0 01.75.75v13.5a.75.75 0 01-.75.75H15a.75.75 0 01-.75-.75V5.25z" clipRule="evenodd" />
+                                            </svg>
+                                        ) : (
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-10 h-10 ml-1">
+                                                <path fillRule="evenodd" d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.348c1.295.712 1.295 2.573 0 3.285L7.28 19.991c-1.25.687-2.779-.217-2.779-1.643V5.653z" clipRule="evenodd" />
+                                            </svg>
+                                        )}
+                                    </button>
+
+                                    <button onClick={(e) => { e.stopPropagation(); onNext(); }} className="text-white/70 hover:text-white transition-colors">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-10 h-10">
+                                            <path d="M14.805 18.44a2.025 2.025 0 01-3.13-1.702v-2.873H3.5a.63.63 0 01-.63-.63v-2.616c0-.63.63-.63.63-.63h8.175V7.19a2.025 2.025 0 013.13-1.701l8.682 6.095c1.179.828 1.179 2.385 0 3.213l-8.682 6.095zM3 5.25a.75.75 0 01.75.75v12a.75.75 0 01-1.5 0v-12a.75.75 0 01.75-.75z" />
                                         </svg>
-                                    )}
-                                </button>
+                                    </button>
+                                </div>
+
+                                <div className="w-3/4 max-w-xs flex items-center gap-3" onClick={e => e.stopPropagation()}>
+                                    <span className="text-xs font-medium text-white/80 w-10 text-right">
+                                        {Math.floor(currentTime / 60)}:{String(Math.floor(currentTime % 60)).padStart(2, '0')}
+                                    </span>
+                                    <input
+                                        type="range"
+                                        min={0}
+                                        max={duration || 100}
+                                        value={currentTime}
+                                        onChange={(e) => onSeek(Number(e.target.value))}
+                                        className="flex-1 h-1 bg-white/20 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:hover:scale-125"
+                                    />
+                                    <span className="text-xs font-medium text-white/80 w-10">
+                                        {duration ? `${Math.floor(duration / 60)}:${String(Math.floor(duration % 60)).padStart(2, '0')}` : '--:--'}
+                                    </span>
+                                </div>
                             </div>
                         </div>
 
@@ -241,6 +274,12 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, onSongUpdated, isEmpty, 
                                     <span className="px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 text-xs font-medium border border-blue-500/20">
                                         Synced Lyrics
                                     </span>
+                                )}
+                                {hasLyrics && (
+                                    <div className="flex items-center gap-2 border-l border-white/10 pl-3 ml-1">
+                                        <button onClick={handleExportTxt} className="text-xs font-bold text-google-text-secondary hover:text-google-gold transition-colors" title="Export TXT">TXT</button>
+                                        <button onClick={handleExportCsv} className="text-xs font-bold text-google-text-secondary hover:text-google-gold transition-colors" title="Export CSV">CSV</button>
+                                    </div>
                                 )}
                             </div>
                         </div>
@@ -267,22 +306,7 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, onSongUpdated, isEmpty, 
                                 <div className="space-y-6 text-center py-10 relative group">
                                     {hasLyrics ? (
                                         <>
-                                            <div className="absolute top-0 right-0 z-10 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button
-                                                    onClick={handleExportTxt}
-                                                    className="px-2 py-1 bg-google-surface-high rounded-lg text-[10px] font-bold text-google-text-secondary hover:text-google-gold transition-colors"
-                                                    title="Export as TXT"
-                                                >
-                                                    TXT
-                                                </button>
-                                                <button
-                                                    onClick={handleExportCsv}
-                                                    className="px-2 py-1 bg-google-surface-high rounded-lg text-[10px] font-bold text-google-text-secondary hover:text-google-gold transition-colors"
-                                                    title="Export as CSV"
-                                                >
-                                                    CSV
-                                                </button>
-                                            </div>
+
 
                                             {lyrics.map((line, i) => (
                                                 <p
