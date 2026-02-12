@@ -1,105 +1,84 @@
-# ![LyricVault Logo](./frontend/public/logo.svg) LyricVault v0.3.2
+# ![LyricVault Logo](./frontend/public/logo.svg) LyricVault v0.3.5
 
-## The Ultimate Local Music Sanctuary — Powered by AI
+## The Ultimate Local Music Sanctuary - Powered by AI
 
-[![Version](https://img.shields.io/badge/version-0.3.2-E2C286?style=for-the-badge)](https://github.com/McEveritts/LyricVault)
+[![Version](https://img.shields.io/badge/version-0.3.5-E2C286?style=for-the-badge)](https://github.com/McEveritts/LyricVault)
 [![License: MIT](https://img.shields.io/badge/License-MIT-E2C286?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Build: Portable & Installer](https://img.shields.io/badge/Build-Portable%20%2B%20Installer-2B2D31?style=for-the-badge)](https://github.com/McEveritts/LyricVault/releases)
 
 ---
 
-## ✨ What is LyricVault?
+## What is LyricVault?
 
-**LyricVault** is a reimagined music player for the modern audiophile. It combines a local-first philosophy with the power of generative AI to ensure your music library is beautiful, complete, and fully yours.
+LyricVault is a local-first music player that combines a personal library workflow with AI-assisted lyric research.
 
-Stop relying on streaming services that change metadata or remove tracks. Build your **sanctuary**.
-
----
-
-## 🚀 New in v0.3.2
-
-### 🛡️ Security & Core Integrity
-
-- **Audit-Grade Security**: Patched critical command injection vectors and hardened CORS policies.
-- **Atomic Ingestion**: Zero-fail transaction logic ensures your library database never gets corrupted by interrupted downloads.
-- **Production Ready**: Verified against comprehensive regression suites for release.
-
-### 🧠 AI & Model Controls
-
-- **Model Selector**: Choose Gemini Flash / Pro / Lite with performance badges directly from Settings.
-- **Multimodal Transcription**: Audio-to-lyrics path is now standard and can fall back after web research.
-- **API Key Tester**: Validate your Gemini key before saving.
-
-### 🔒 Reliability
-
-- **Thread-Safe Tasks**: Background ingest/research wrapped with locks to prevent races.
-- **Smart Retries**: 500/503 + rate limits now use exponential backoff.
-- **Dynamic FFmpeg Discovery**: Finds WinGet/system FFmpeg automatically.
-
-### 🎨 Space Bass UI
-
-- **Updated Settings 2.0** with Monet-inspired layout.
-- **Glassmorphism + Gold accents** standardized across views.
-- **Icon pipeline** in `scripts/` for consistent app icons.
-
-### 🧹 Housekeeping
-
-- Centralized `API_BASE` config; removed unused deps (`beautifulsoup4`, `spotipy`).
+Instead of relying on streaming metadata that can change over time, LyricVault helps you build and keep a stable local catalog.
 
 ---
 
-## 🎨 The Aesthetic: "Space Bass"
+## New in v0.3.5
 
-Inspired by the Google Pixel 10 Pro and deep house vibes:
+### Security and Core Integrity
+- Hardened CORS policy and release-mode origin gating.
+- Ingestion/database behavior improved for safer retry flows.
+- Release hardening checks expanded and documented.
 
-- **Glassmorphism**: High-blur, translucent panels.
-- **Gold Accents**: Signature `#E2C286` highlights against a deep void background.
-- **Fluid Motion**: Animations that breathe with the music.
+### AI and Model Controls
+- Gemini model selection from Settings.
+- Audio transcription fallback when web lyric research fails.
+- API key validation before save.
+
+### Reliability
+- Better task safety for background ingest/research flows.
+- Retry behavior improved for transient server failures and rate limits.
+- Dynamic FFmpeg discovery for local and packaged environments.
+
+### UI and Workflow
+- Dedicated visualizer deck flow and icon system cleanup.
+- Queue actions integrated across Discovery/Library views.
+- Accessibility pass for icon-only controls.
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Core | Technology |
 | :--- | :--- |
-| **Frontend** | React 19 + Vite + Tailwind v4 |
-| **Backend** | Python FastAPI + SQLAlchemy |
-| **AI** | Google Gemini 2.0 Flash (Stable) |
-| **Audio** | yt-dlp + FFmpeg (Auto-managed) |
-| **Shell** | Electron 35 |
+| Frontend | React 19 + Vite + Tailwind v4 |
+| Backend | Python FastAPI + SQLAlchemy |
+| AI | Google Gemini |
+| Audio | yt-dlp + FFmpeg |
+| Shell | Electron 35 |
 
 ---
 
-## 🚦 Getting Started
+## Getting Started
 
 ### 1. Installation
 
-Grab the latest release from the `release/` folder or build it yourself.
+Get the latest release artifacts from GitHub Releases or build locally.
 
-**Option A: Installer**
-Run `LyricVault Setup 0.3.2.exe` to install to your system.
+Option A (Installer):
+Run `LyricVault Setup 0.3.5.exe`.
 
-**Option B: Portable**
-Run `LyricVault 0.3.2.exe` to launch instantly.
+Option B (Portable):
+Run `LyricVault 0.3.5.exe`.
 
 ### 2. Configuration
 
 To enable AI features:
-
-1. Go to **Settings**.
-2. Enter your [Google Gemini API Key](https://aistudio.google.com/).
-3. Select **Gemini 2.0 Flash** (Recommended).
-
----
-
-## 🤝 Contributing
-
-We welcome fellow audiophiles and coders!
-
-1. Fork the repo.
-2. `npm run setup:python` to initialize the backend.
-3. `npm run dev` to launch the development environment.
+1. Open Settings.
+2. Add your Google Gemini API key.
+3. Select your preferred Gemini model.
 
 ---
 
-> *Created with ❤️ by McEveritts.*
+## Contributing
+
+1. Fork the repository.
+2. Run `npm run setup:python`.
+3. Run `npm run dev`.
+
+---
+
+Created by McEveritts.

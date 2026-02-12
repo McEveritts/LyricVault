@@ -3,7 +3,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const http = require('http');
 
-// ── Paths ────────────────────────────────────────────────────────────
+// Paths
 const isDev = !app.isPackaged;
 
 function getResourcePath(...segments) {
@@ -13,7 +13,7 @@ function getResourcePath(...segments) {
     return path.join(process.resourcesPath, ...segments);
 }
 
-// Python executable — embedded distribution in packaged app, venv in dev
+// Python executable - embedded distribution in packaged app, venv in dev
 function getPythonPath() {
     if (isDev) {
         return path.join(__dirname, '..', 'backend', 'venv', 'Scripts', 'python.exe');
@@ -40,7 +40,7 @@ function getWindowIconPath() {
     return getResourcePath('assets', 'icon.ico');
 }
 
-// ── Backend Process ──────────────────────────────────────────────────
+// Backend process
 let backendProcess = null;
 
 function startBackend() {
@@ -137,7 +137,7 @@ function waitForBackend(maxRetries = 30, interval = 500) {
     });
 }
 
-// ── Window ───────────────────────────────────────────────────────────
+// Window
 let mainWindow = null;
 
 function createWindow() {
@@ -179,7 +179,7 @@ function createWindow() {
     });
 }
 
-// ── App Lifecycle ────────────────────────────────────────────────────
+// App lifecycle
 
 // Single instance lock
 const gotLock = app.requestSingleInstanceLock();
@@ -221,3 +221,4 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
     stopBackend();
 });
+

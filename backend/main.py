@@ -57,7 +57,7 @@ async def lifespan(app: FastAPI):
         worker.stop()
 
 
-app = FastAPI(title="LyricVault API", version="0.3.2", lifespan=lifespan)
+app = FastAPI(title="LyricVault API", version="0.3.5", lifespan=lifespan)
 
 # Mount downloads directory
 os.makedirs(DOWNLOADS_DIR, exist_ok=True)
@@ -545,7 +545,7 @@ def set_model(request: ModelRequest):
 
 @app.get("/")
 def read_root():
-    return {"message": "LyricVault Backend v0.3.2 is running"}
+    return {"message": "LyricVault Backend v0.3.5 is running"}
 
 if __name__ == "__main__":
     reload_enabled = os.getenv("LYRICVAULT_BACKEND_RELOAD", "0") == "1"

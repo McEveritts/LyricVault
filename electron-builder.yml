@@ -1,6 +1,6 @@
 appId: com.lyricvault.app
 productName: LyricVault
-copyright: Copyright © 2026
+copyright: Copyright (c) 2026
 
 directories:
   output: release
@@ -61,3 +61,4 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: LyricVault
+

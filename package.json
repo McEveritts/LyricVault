@@ -1,7 +1,7 @@
 {
     "name": "lyricvault",
-    "version": "0.3.2",
-    "description": "Your personal music sanctuary — AI-powered lyric research and local music library",
+    "version": "0.3.5",
+    "description": "Your personal music sanctuary - AI-powered lyric research and local music library",
     "main": "electron/main.js",
     "private": true,
     "scripts": {
@@ -22,3 +22,5 @@
     "author": "McEveritts",
     "license": "MIT"
 }
+
+

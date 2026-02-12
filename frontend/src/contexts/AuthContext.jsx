@@ -27,11 +27,6 @@ export const AuthProvider = ({ children }) => {
         const unsubscribe = onAuthStateChanged(auth, (user) => {
             setCurrentUser(user);
             setLoading(false);
-            if (user) {
-                console.log("User logged in:", user.displayName);
-            } else {
-                console.log("User logged out");
-            }
         });
 
         return unsubscribe;

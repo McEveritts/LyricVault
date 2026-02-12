@@ -2,6 +2,14 @@
 
 All notable changes to the LyricVault project will be documented in this file.
 
+## [0.3.5] - 2026-02-12
+
+### Changed
+
+- Bumped application version baseline from `0.3.2` to `0.3.5`.
+- Updated runtime version surfaces across Electron preload, backend API metadata, and frontend Settings footer.
+- Updated release-facing documentation references and artifact naming to `0.3.5`.
+
 ## [0.3.2] - 2026-02-12
 
 ### Added

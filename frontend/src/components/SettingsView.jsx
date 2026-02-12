@@ -342,7 +342,7 @@ const SettingsView = () => {
                 </section>
 
                 <div className="text-center pt-8 pb-4">
-                    <p className="text-xs text-google-text-secondary opacity-50">LyricVault v0.3.2 &bull; Designed for Pixel</p>
+                    <p className="text-xs text-google-text-secondary opacity-50">LyricVault v0.3.5 &bull; Designed for Pixel</p>
                 </div>
             </main>
         </>
