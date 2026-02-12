@@ -37,8 +37,10 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, onNext, onPrevious, onSe
         ? availableModels
         : [{ id: selectedModel, name: selectedModel }];
 
+    const canDisplayLyrics = ['ready', 'unsynced'].includes(song?.lyrics_status);
+
     const lyrics = useMemo(() => {
-        if (!song?.lyrics) return [];
+        if (!song?.lyrics || !canDisplayLyrics) return [];
 
         const lines = song.lyrics.split('\n');
         const parsed = [];
@@ -64,14 +66,13 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, onNext, onPrevious, onSe
         }
 
         return parsed;
-    }, [song]);
+    }, [song, canDisplayLyrics]);
 
     const hasLyrics = lyrics.length > 0 && song?.lyrics !== 'Lyrics not found.';
+    const hasTimedLyrics = lyrics.some(line => line.time >= 0);
 
     const activeLineIndex = useMemo(() => {
-        if (!lyrics.length) return -1;
-        const hasTimestamps = lyrics.some(line => line.time >= 0);
-        if (!hasTimestamps) return -1;
+        if (!lyrics.length || !hasTimedLyrics) return -1;
 
         for (let i = lyrics.length - 1; i >= 0; i -= 1) {
             if (lyrics[i].time >= 0 && lyrics[i].time <= currentTime) {
@@ -80,7 +81,7 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, onNext, onPrevious, onSe
         }
 
         return -1;
-    }, [lyrics, currentTime]);
+    }, [lyrics, currentTime, hasTimedLyrics]);
 
     useEffect(() => {
         if (activeLineIndex !== -1 && activeLineRef.current && typeof activeLineRef.current.scrollIntoView === 'function') {
@@ -164,7 +165,7 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, onNext, onPrevious, onSe
             const data = await response.json();
             if (data.status === 'success') {
                 await refreshSongDetails();
-                setStatusMsg('Lyrics updated.');
+                setStatusMsg(data.synced ? 'Synced lyrics updated.' : 'Unsynced lyrics saved.');
             } else {
                 setStatusMsg(data.message || 'Research failed.');
             }
@@ -275,10 +276,27 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, onNext, onPrevious, onSe
                                         Synced Lyrics
                                     </span>
                                 )}
+                                {(song.lyrics_status === 'unsynced') && (
+                                    <span className="px-3 py-1 rounded-full bg-amber-500/10 text-amber-300 text-xs font-medium border border-amber-500/20">
+                                        Unsynced Lyrics
+                                    </span>
+                                )}
                                 {hasLyrics && (
                                     <div className="flex items-center gap-2 border-l border-white/10 pl-3 ml-1">
-                                        <button onClick={handleExportTxt} className="text-xs font-bold text-google-text-secondary hover:text-google-gold transition-colors" title="Export TXT">TXT</button>
-                                        <button onClick={handleExportCsv} className="text-xs font-bold text-google-text-secondary hover:text-google-gold transition-colors" title="Export CSV">CSV</button>
+                                        <button
+                                            onClick={handleExportTxt}
+                                            className="text-xs font-semibold text-google-text bg-google-surface-high hover:bg-google-gold hover:text-black transition-colors px-3 py-1.5 rounded-lg"
+                                            title="Export TXT"
+                                        >
+                                            Export TXT
+                                        </button>
+                                        <button
+                                            onClick={handleExportCsv}
+                                            className="text-xs font-semibold text-google-text bg-google-surface-high hover:bg-google-gold hover:text-black transition-colors px-3 py-1.5 rounded-lg"
+                                            title="Export CSV"
+                                        >
+                                            Export CSV
+                                        </button>
                                     </div>
                                 )}
                             </div>
@@ -313,9 +331,11 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, onNext, onPrevious, onSe
                                                     key={i}
                                                     ref={i === activeLineIndex ? activeLineRef : null}
                                                     className={`text-lg transition-all duration-300 cursor-pointer hover:opacity-80
-                                                    ${i === activeLineIndex
-                                                            ? 'text-google-text font-bold scale-105 origin-center'
-                                                            : 'text-google-text-secondary opacity-40 blur-[0.5px]'}
+                                                    ${activeLineIndex !== -1
+                                                            ? (i === activeLineIndex
+                                                                ? 'text-google-text font-bold scale-105 origin-center'
+                                                                : 'text-google-text-secondary opacity-40 blur-[0.5px]')
+                                                            : 'text-google-text-secondary opacity-85'}
                                                     `}
                                                 >
                                                     {line.content}
@@ -362,7 +382,11 @@ const SongDetailView = ({ song, isPlaying, onPlayPause, onNext, onPrevious, onSe
                                                     <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                                                 </svg>
                                             </div>
-                                            <p className="text-google-text-secondary mb-8">No lyrics available yet.</p>
+                                            <p className="text-google-text-secondary mb-8">
+                                                {song.lyrics_status === 'unavailable'
+                                                    ? 'No synced lyrics available in strict mode.'
+                                                    : 'No lyrics available yet.'}
+                                            </p>
 
                                             <div className="bg-google-surface/50 border border-white/5 p-6 rounded-[2rem] max-w-sm w-full space-y-4">
                                                 <div className="space-y-1">

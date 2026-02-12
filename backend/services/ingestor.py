@@ -111,6 +111,8 @@ class IngestionService:
             return "tiktok"
         elif self._host_matches(host, "instagram.com"):
             return "instagram"
+        elif self._host_matches(host, "facebook.com") or self._host_matches(host, "fb.watch"):
+            return "facebook"
         return None
 
     def fetch_metadata_itunes(self, term: str, limit=1):
@@ -239,62 +241,154 @@ class IngestionService:
             logger.error(f"Error downloading: {e}")
             raise HTTPException(status_code=400, detail=f"Download failed: {str(e)}")
 
-    def search_platforms(self, query: str, platform: str):
+    @staticmethod
+    def _normalize_social_sources(social_sources: str | None) -> list[str]:
+        default = ["instagram", "tiktok", "facebook"]
+        if not social_sources:
+            return default
+        selected = {
+            token.strip().lower()
+            for token in social_sources.split(",")
+            if token and token.strip()
+        }
+        normalized = [source for source in default if source in selected]
+        return normalized or default
+
+    @staticmethod
+    def _is_url_query(query: str) -> bool:
+        try:
+            parsed = urlparse(query.strip())
+            return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+        except Exception:
+            return False
+
+    def _search_with_prefix(self, query: str, prefix: str, platform: str, limit: int = 5) -> list[dict]:
+        search_query = f"{prefix}{query}"
+        try:
+            opts = get_ydl_opts(download=False)
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(search_query, download=False)
+                if not info or "entries" not in info:
+                    return []
+
+                results = []
+                for entry in (info.get("entries") or [])[:limit]:
+                    if not entry:
+                        continue
+                    thumbnail = entry.get("thumbnail")
+                    if platform == "soundcloud" and thumbnail:
+                        thumbnail = thumbnail.replace("-large.jpg", "-t500x500.jpg")
+                    results.append({
+                        "id": entry.get("id"),
+                        "title": entry.get("title"),
+                        "artist": entry.get("uploader") or entry.get("artist"),
+                        "uploader": entry.get("uploader") or entry.get("artist"),
+                        "url": entry.get("webpage_url") or entry.get("url"),
+                        "duration": entry.get("duration"),
+                        "thumbnail": thumbnail,
+                        "platform": platform,
+                    })
+                return results
+        except Exception as e:
+            logger.warning(f"Search failed for {platform}: {str(e)}")
+            return []
+
+    def _search_direct_url(self, url: str, platform_hint: str | None = None) -> list[dict]:
+        """
+        Best-effort metadata extraction for direct social links.
+        This is the reliable path for Social discovery in current extractor limits.
+        """
+        try:
+            opts = get_ydl_opts(download=False)
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+        except Exception as e:
+            logger.warning(f"Direct URL search failed for {url}: {e}")
+            return []
+
+        if not info:
+            return []
+
+        entries = info.get("entries") if isinstance(info, dict) else None
+        extracted_platform = platform_hint or self.parse_url(url) or "social"
+
+        def to_result(entry: dict) -> dict:
+            return {
+                "id": entry.get("id"),
+                "title": entry.get("title"),
+                "artist": entry.get("uploader") or entry.get("artist"),
+                "uploader": entry.get("uploader") or entry.get("artist"),
+                "url": entry.get("webpage_url") or entry.get("url") or url,
+                "duration": entry.get("duration"),
+                "thumbnail": entry.get("thumbnail"),
+                "platform": extracted_platform,
+            }
+
+        if isinstance(entries, list):
+            return [to_result(entry) for entry in entries[:5] if entry]
+        if isinstance(info, dict):
+            return [to_result(info)]
+        return []
+
+    def search_platforms(self, query: str, platform: str, social_sources: str | None = None):
         if platform == "spotify":
             itunes_results = self.fetch_metadata_itunes(query, limit=5)
             if itunes_results:
                 results = []
                 for res in itunes_results:
-                    # Encode metadata in the URL for our resolver to pick up
-                    # This ensures "Add to Library" works for Spotify search results
+                    # Encode metadata in the URL for our resolver to pick up.
                     search_slug = f"{res['title']} {res['artist']}".replace(" ", "-")
                     dummy_url = f"https://open.spotify.com/track/manual_{search_slug}"
                     results.append({
                         "id": f"itunes_{res['title']}_{res['artist']}",
                         "title": res['title'],
                         "artist": res['artist'],
+                        "uploader": res['artist'],
                         "url": dummy_url,
                         "duration": res['duration'],
                         "thumbnail": res['cover_url'],
-                        "platform": "spotify"
+                        "platform": "spotify",
                     })
                 return results
+
+        if platform == "social":
+            selected_sources = self._normalize_social_sources(social_sources)
+            if self._is_url_query(query):
+                detected = self.parse_url(query)
+                if detected in selected_sources:
+                    return self._search_direct_url(query, platform_hint=detected)
+                return []
+
+            prefix_map = {
+                "tiktok": "tiktoksearch5:",
+                "instagram": "instagramsearch5:",
+                "facebook": "facebooksearch5:",
+            }
+            merged: list[dict] = []
+            for source in selected_sources:
+                prefix = prefix_map.get(source)
+                if not prefix:
+                    continue
+                merged.extend(self._search_with_prefix(query, prefix, source, limit=5))
+
+            # Deduplicate by URL while preserving order.
+            seen_urls: set[str] = set()
+            deduped = []
+            for item in merged:
+                url = item.get("url")
+                if not url or url in seen_urls:
+                    continue
+                seen_urls.add(url)
+                deduped.append(item)
+            return deduped
 
         search_prefix = {
             "youtube": "ytsearch5:",
             "soundcloud": "scsearch5:",
             "tiktok": "tiktoksearch5:",
-            "instagram": "instagramsearch5:"
+            "instagram": "instagramsearch5:",
+            "facebook": "facebooksearch5:",
         }.get(platform, "ytsearch5:")
-
-        search_query = f"{search_prefix}{query}"
-        
-        try:
-            opts = get_ydl_opts(download=False)
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                info = ydl.extract_info(search_query, download=False)
-                results = []
-                if not info or 'entries' not in info:
-                    return []
-
-                for entry in info.get('entries', []):
-                    if entry:
-                        thumbnail = entry.get('thumbnail')
-                        if platform == "soundcloud" and thumbnail:
-                            thumbnail = thumbnail.replace("-large.jpg", "-t500x500.jpg")
-                        
-                        results.append({
-                            "id": entry.get('id'),
-                            "title": entry.get('title'),
-                            "artist": entry.get('uploader') or entry.get('artist'),
-                            "url": entry.get('webpage_url') or entry.get('url'),
-                            "duration": entry.get('duration'),
-                            "thumbnail": thumbnail,
-                            "platform": platform
-                        })
-                return results
-        except Exception as e:
-            logger.error(f"Search failed for {platform}: {str(e)}")
-            return []
+        return self._search_with_prefix(query, search_prefix, platform, limit=5)
 
 ingestor = IngestionService()

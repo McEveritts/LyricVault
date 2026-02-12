@@ -1,54 +1,41 @@
 import re
-from typing import List
+
+
+TIMESTAMP_PATTERN = re.compile(r"^\s*\[(\d+):(\d{2})\.(\d{2,3})\]")
+
 
 def validate_lrc(text: str, min_lines: int = 5) -> bool:
     """
-    Validate if the text is a valid LRC format with:
-    1. At least min_lines of valid timestamped lyrics.
-    2. Timestamps in [mm:ss.xx] format.
-    3. Strictly increasing timestamps (to filter out hallucinated/garbage loops).
-    
-    Args:
-        text: The string content to validate.
-        min_lines: Minimum number of valid timed lines required.
-        
-    Returns:
-        bool: True if valid, False otherwise.
+    Validate LRC text using strict timed-line rules:
+    1. At least min_lines lines start with [mm:ss.xx] or [mm:ss.xxx].
+    2. Every parsed timestamp is strictly increasing in line order.
     """
-    if not text:
+    if not text or not isinstance(text, str):
         return False
-        
-    # Regex for [mm:ss.xx] or [mm:ss.xxx]
-    # We strictly require the bracketed timestamp at the start of the line or minimal offset
-    timestamp_pattern = re.compile(r'\[(\d+):(\d{2})\.(\d{2,3})\]')
-    
-    lines = text.strip().split('\n')
-    valid_lines = []
-    
-    for line in lines:
-        match = timestamp_pattern.search(line)
-        if match:
-            minutes = int(match.group(1))
-            seconds = int(match.group(2))
-            milliseconds = int(match.group(3))
-            
-            # Normalize to total seconds for ordering check
-            # Handle 2 digit (centi) vs 3 digit (milli) matches
-            ms_val = milliseconds if len(match.group(3)) == 3 else milliseconds * 10
-            
-            total_seconds = (minutes * 60) + seconds + (ms_val / 1000.0)
-            valid_lines.append(total_seconds)
-            
-    if len(valid_lines) < min_lines:
+
+    timed_seconds: list[float] = []
+    for raw_line in text.strip().splitlines():
+        match = TIMESTAMP_PATTERN.match(raw_line)
+        if not match:
+            continue
+
+        minutes = int(match.group(1))
+        seconds = int(match.group(2))
+        fraction_raw = match.group(3)
+
+        if seconds >= 60:
+            return False
+
+        # 2-digit fractions are centiseconds; normalize to milliseconds.
+        fraction_ms = int(fraction_raw) if len(fraction_raw) == 3 else int(fraction_raw) * 10
+        total_seconds = (minutes * 60) + seconds + (fraction_ms / 1000.0)
+        timed_seconds.append(total_seconds)
+
+    if len(timed_seconds) < min_lines:
         return False
-        
-    # Check for progression
-    if valid_lines[-1] <= valid_lines[0]:
-        return False
-        
-    # Check for massive disorder? 
-    # For now, simplistic progression check is better than nothing. 
-    # We can accept some out-of-order lines for stylistic reasons (e.g. repeated chorus lines at top?) 
-    # but standard LRC is usually ordered.
-    
+
+    for prev, current in zip(timed_seconds, timed_seconds[1:]):
+        if current <= prev:
+            return False
+
     return True

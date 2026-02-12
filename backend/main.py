@@ -46,6 +46,7 @@ from services.lyricist import lyricist
 from services.gemini_service import gemini_service
 from services import settings_service
 from services.worker import worker
+from utils.lrc_validator import validate_lrc
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -57,7 +58,7 @@ async def lifespan(app: FastAPI):
         worker.stop()
 
 
-app = FastAPI(title="LyricVault API", version="0.3.5", lifespan=lifespan)
+app = FastAPI(title="LyricVault API", version="0.4.2", lifespan=lifespan)
 
 # Mount downloads directory
 os.makedirs(DOWNLOADS_DIR, exist_ok=True)
@@ -97,6 +98,7 @@ class SongResponse(BaseModel):
     artist: str
     status: str
     lyrics_status: str
+    lyrics_synced: bool
     stream_url: str
     source_url: str | None = None
     cover_url: str | None = None
@@ -117,6 +119,10 @@ class ModelRequest(BaseModel):
 class ResearchRequest(BaseModel):
     model_id: str = "gemini-2.0-flash"
     mode: str = "auto"
+
+
+class LyricsModeRequest(BaseModel):
+    strict_lrc: bool
 
 def _duration_seconds(value) -> int | None:
     """Normalize duration values to integer seconds for API responses."""
@@ -167,7 +173,7 @@ def _active_lyrics_song_ids(db: Session) -> set[int]:
     ids: set[int] = set()
     jobs = db.query(models.Job).filter(
         models.Job.type == "generate_lyrics",
-        models.Job.status.in_(["pending", "processing"])
+        models.Job.status.in_(["pending", "processing", "retrying"])
     ).all()
 
     for job in jobs:
@@ -183,12 +189,14 @@ def _active_lyrics_song_ids(db: Session) -> set[int]:
     return ids
 
 
-def _lyrics_status(song: models.Song, processing_song_ids: set[int]) -> str:
-    # STRICT: Only return "ready" if we have valid time-synced lyrics.
-    if song.lyrics_synced:
+def _lyrics_status(song: models.Song, processing_song_ids: set[int], strict_lrc: bool) -> str:
+    if song.lyrics_synced and song.lyrics and validate_lrc(song.lyrics):
         return "ready"
     if song.id in processing_song_ids:
         return "processing"
+    has_unsynced_text = bool(song.lyrics and song.lyrics.strip() and song.lyrics != "Lyrics not found.")
+    if not strict_lrc and has_unsynced_text:
+        return "unsynced"
     return "unavailable"
 
 
@@ -322,9 +330,9 @@ async def ingest_song(request: IngestRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/search")
-def search_music(q: str, platform: str = "youtube"):
+def search_music(q: str, platform: str = "youtube", social_sources: str | None = None):
     try:
-        results = ingestor.search_platforms(q, platform)
+        results = ingestor.search_platforms(q, platform, social_sources=social_sources)
         return results
     except Exception as e:
         logger.error(f"Search failed: {e}")
@@ -372,12 +380,27 @@ async def research_lyrics_manual(song_id: int, request: ResearchRequest, db: Ses
                 model_id=request.model_id,
             )
 
-    if lyrics:
+    strict_lrc = settings_service.get_strict_lrc_mode()
+    existing_synced = bool(song.lyrics_synced and song.lyrics and validate_lrc(song.lyrics))
+    is_synced = bool(lyrics and validate_lrc(lyrics))
+
+    if lyrics and is_synced:
+        song.lyrics = lyrics
+        song.lyrics_synced = True
+        db.commit()
+        return {"status": "success", "synced": True, "lyrics": lyrics}
+
+    if lyrics and not strict_lrc:
         song.lyrics = lyrics
         song.lyrics_synced = False
         db.commit()
-        return {"status": "success", "lyrics": lyrics}
-    return {"status": "failed", "message": "AI could not find or transcribe lyrics."}
+        return {"status": "success", "synced": False, "lyrics": lyrics}
+
+    if not existing_synced:
+        song.lyrics = "Lyrics not found."
+        song.lyrics_synced = False
+        db.commit()
+    return {"status": "failed", "message": "AI could not find valid synced lyrics."}
 
 @app.get("/jobs/active")
 def list_active_jobs(db: Session = Depends(get_db)):
@@ -441,6 +464,7 @@ def get_library(request: Request, db: Session = Depends(get_db)):
     songs = db.query(models.Song).order_by(models.Song.id.desc()).all()
     processing_song_ids = _active_lyrics_song_ids(db)
     active_ingest_urls = _active_ingest_urls(db)
+    strict_lrc = settings_service.get_strict_lrc_mode()
 
     changed = False
     for song in songs:
@@ -460,7 +484,8 @@ def get_library(request: Request, db: Session = Depends(get_db)):
             "title": song.title,
             "artist": song.artist.name if song.artist else "Unknown",
             "status": status,
-            "lyrics_status": _lyrics_status(song, processing_song_ids),
+            "lyrics_status": _lyrics_status(song, processing_song_ids, strict_lrc),
+            "lyrics_synced": bool(song.lyrics_synced and song.lyrics and validate_lrc(song.lyrics)),
             "stream_url": stream_url,
             "source_url": song.source_url,
             "cover_url": song.cover_url,
@@ -484,15 +509,16 @@ def get_song(song_id: int, request: Request, db: Session = Depends(get_db)):
     filename = os.path.basename(song.file_path) if status == "cached" and song.file_path else ""
     stream_url = _stream_url(request, filename)
     processing_song_ids = _active_lyrics_song_ids(db)
+    strict_lrc = settings_service.get_strict_lrc_mode()
 
     return {
         "id": song.id,
         "title": song.title,
         "artist": song.artist.name if song.artist else "Unknown",
         "status": status,
-        "lyrics_status": _lyrics_status(song, processing_song_ids),
+        "lyrics_status": _lyrics_status(song, processing_song_ids, strict_lrc),
         "lyrics": song.lyrics,
-        "lyrics_synced": song.lyrics_synced,
+        "lyrics_synced": bool(song.lyrics_synced and song.lyrics and validate_lrc(song.lyrics)),
         "file_path": song.file_path,
         "stream_url": stream_url,
         "source_url": song.source_url,
@@ -573,6 +599,20 @@ def delete_genius_key():
         raise HTTPException(status_code=500, detail=f"Failed to remove API key: {e}")
     return {"status": "deleted", "message": "API key removed"}
 
+
+@app.get("/settings/lyrics-mode")
+def get_lyrics_mode():
+    return {"strict_lrc": settings_service.get_strict_lrc_mode()}
+
+
+@app.post("/settings/lyrics-mode")
+def set_lyrics_mode(request: LyricsModeRequest):
+    try:
+        settings_service.set_strict_lrc_mode(request.strict_lrc)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save lyrics mode: {e}")
+    return {"status": "saved", "strict_lrc": bool(request.strict_lrc)}
+
 @app.get("/settings/models")
 def get_models():
     models_list = settings_service.get_available_models()
@@ -589,7 +629,7 @@ def set_model(request: ModelRequest):
 
 @app.get("/")
 def read_root():
-    return {"message": "LyricVault Backend v0.3.5 is running"}
+    return {"message": "LyricVault Backend v0.4.2 is running"}
 
 if __name__ == "__main__":
     reload_enabled = os.getenv("LYRICVAULT_BACKEND_RELOAD", "0") == "1"

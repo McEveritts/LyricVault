@@ -10,6 +10,7 @@ from database.database import SessionLocal
 from database import models
 from services.ingestor import ingestor
 from services.lyricist import lyricist
+from services import settings_service
 from utils.lrc_validator import validate_lrc
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,7 @@ class Worker:
         self.heartbeat_interval_seconds = 60
         self.cleanup_interval_seconds = 10 * 60
         self.audio_ttl_seconds = 60 * 60
+        self.legacy_lyrics_batch_size = 25
         backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.downloads_dir = os.path.join(backend_dir, "downloads")
         self._audio_extensions = {
@@ -63,6 +65,7 @@ class Worker:
     def _run(self):
         # Startup: Requeue stale jobs
         self._requeue_stale_jobs()
+        self._queue_legacy_unsynced_lyrics()
         
         while not self._stop_event.is_set():
             try:
@@ -188,6 +191,100 @@ class Worker:
         finally:
             db.close()
 
+    @staticmethod
+    def _extract_song_id_from_payload(payload: str | None) -> int | None:
+        if not payload:
+            return None
+        try:
+            parsed = json.loads(payload)
+        except Exception:
+            return None
+        raw_song_id = parsed.get("song_id")
+        if isinstance(raw_song_id, int):
+            return raw_song_id
+        if isinstance(raw_song_id, str) and raw_song_id.isdigit():
+            return int(raw_song_id)
+        return None
+
+    def _queue_legacy_unsynced_lyrics(self):
+        """
+        On startup, queue bounded lyric-regeneration jobs for legacy songs that
+        still contain non-LRC text.
+        """
+        if not settings_service.get_strict_lrc_mode():
+            return
+
+        db = SessionLocal()
+        try:
+            active_song_ids: set[int] = set()
+            active_jobs = db.query(models.Job).filter(
+                models.Job.type == "generate_lyrics",
+                models.Job.status.in_(["pending", "processing", "retrying"])
+            ).all()
+            for job in active_jobs:
+                song_id = self._extract_song_id_from_payload(job.payload)
+                if song_id is not None:
+                    active_song_ids.add(song_id)
+
+            candidates = db.query(models.Song).filter(
+                models.Song.lyrics_synced == False,  # noqa: E712 - SQLAlchemy comparison
+                models.Song.lyrics.isnot(None),
+                models.Song.lyrics != "",
+                models.Song.lyrics != "Lyrics not found.",
+            ).order_by(models.Song.id.asc()).all()
+
+            healed_count = 0
+            queued_count = 0
+            processed_count = 0
+            for song in candidates:
+                if processed_count >= self.legacy_lyrics_batch_size:
+                    break
+
+                lyrics_text = song.lyrics or ""
+                if validate_lrc(lyrics_text):
+                    song.lyrics_synced = True
+                    healed_count += 1
+                    processed_count += 1
+                    continue
+
+                if song.id in active_song_ids:
+                    continue
+
+                idempotency_key = f"lyrics_legacy_migrate_{song.id}"
+                existing = db.query(models.Job).filter(models.Job.idempotency_key == idempotency_key).first()
+                if existing:
+                    continue
+
+                payload = {
+                    "song_id": song.id,
+                    "title": song.title,
+                    "artist": song.artist.name if song.artist else "Unknown",
+                    "file_path": song.file_path,
+                }
+                db.add(models.Job(
+                    type="generate_lyrics",
+                    status="pending",
+                    title=f"Lyrics Migration: {payload['artist']} - {payload['title']}",
+                    idempotency_key=idempotency_key,
+                    payload=json.dumps(payload),
+                ))
+                queued_count += 1
+                processed_count += 1
+
+            if healed_count or queued_count:
+                db.commit()
+                logger.info(
+                    "Legacy lyric migration pass completed: healed=%s queued=%s batch_limit=%s",
+                    healed_count,
+                    queued_count,
+                    self.legacy_lyrics_batch_size,
+                )
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Legacy lyric migration pass failed: {e}", exc_info=True)
+        finally:
+            db.close()
+
     def _process_one_job(self) -> bool:
         db = SessionLocal()
         try:
@@ -205,7 +302,7 @@ class Worker:
                     updated_at=:now
                 WHERE id = (
                     SELECT id FROM jobs 
-                    WHERE (status='pending' OR status='failed')
+                    WHERE (status='pending' OR status='retrying')
                       AND available_at <= :now
                       AND retry_count < max_retries
                     ORDER BY created_at ASC 
@@ -266,7 +363,7 @@ class Worker:
                     # Exponential backoff: 30s, 2m, 10m...
                     delay = 30 * (4 ** (job.retry_count - 1))
                     job.available_at = datetime.now(timezone.utc) + timedelta(seconds=delay)
-                    job.status = "pending"
+                    job.status = "retrying"
             finally:
                 heartbeat_stop.set()
                 heartbeat_thread.join(timeout=2)
@@ -394,31 +491,62 @@ class Worker:
             job.title = f"Lyrics: {artist or 'Unknown'} - {title}"
             db.commit()
 
+        strict_lrc = settings_service.get_strict_lrc_mode()
+
+        lyrics = None
+        source = "unknown"
+        is_synced = False
+
         if mode == "transcribe":
             if not file_path or not os.path.exists(file_path):
                 raise ValueError("Audio file not found for transcription.")
             lyrics = lyricist._try_gemini_transcription(file_path, title, artist, model_id=model_id)
+            source = "gemini_transcription"
+            is_synced = bool(lyrics and validate_lrc(lyrics))
         elif mode == "research":
             lyrics = lyricist._try_gemini_research(title, artist, model_id=model_id)
+            source = "gemini_research"
+            is_synced = bool(lyrics and validate_lrc(lyrics))
         elif model_id:
             # Respect explicit model selection when manually queued.
             lyrics = lyricist._try_gemini_research(title, artist, model_id=model_id)
+            source = "gemini_research"
+            is_synced = bool(lyrics and validate_lrc(lyrics))
             if not lyrics and file_path and os.path.exists(file_path):
                 lyrics = lyricist._try_gemini_transcription(file_path, title, artist, model_id=model_id)
+                source = "gemini_transcription"
+                is_synced = bool(lyrics and validate_lrc(lyrics))
         else:
-            lyrics = lyricist.transcribe(title, artist, file_path)
+            outcome = lyricist.transcribe(title, artist, file_path)
+            if isinstance(outcome, dict):
+                lyrics = outcome.get("lyrics")
+                source = outcome.get("source", "auto")
+                is_synced = bool(outcome.get("is_synced"))
+            elif isinstance(outcome, str):
+                # Backward-compatible fallback
+                lyrics = outcome
+                source = "auto"
+                is_synced = validate_lrc(lyrics)
         
         song = db.get(models.Song, song_id)
         if song:
-            if lyrics and validate_lrc(lyrics):
+            existing_synced = bool(song.lyrics_synced and song.lyrics and validate_lrc(song.lyrics))
+            if lyrics and is_synced:
                 song.lyrics = lyrics
                 song.lyrics_synced = True
-                job.result_json = json.dumps({"status": "found"})
-            else:
-                # Strictly reject unsynced/plain text lyrics
-                song.lyrics = "Lyrics not found."
+                job.result_json = json.dumps({"status": "found", "synced": True, "source": source})
+            elif lyrics and not strict_lrc:
+                song.lyrics = lyrics
                 song.lyrics_synced = False
-                job.result_json = json.dumps({"status": "not_found"})
+                job.result_json = json.dumps({"status": "found_unsynced", "synced": False, "source": source})
+            else:
+                if existing_synced:
+                    # Preserve previously valid synced lyrics on failed retries.
+                    job.result_json = json.dumps({"status": "kept_existing_synced", "synced": True})
+                else:
+                    song.lyrics = "Lyrics not found."
+                    song.lyrics_synced = False
+                    job.result_json = json.dumps({"status": "not_found", "synced": False})
             db.commit()
 
 worker = Worker()

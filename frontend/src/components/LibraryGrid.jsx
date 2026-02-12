@@ -138,7 +138,7 @@ const LibraryGrid = ({ refreshTrigger, rehydratingSongIds = [], onPlay, onQueueN
             )}
 
             {/* Grid */}
-            <div className={`grid gap-8 ${recentOnly ? 'grid-cols-4' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5'}`}>
+            <div className={`grid gap-8 ${recentOnly ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5'}`}>
                 {filteredAndSortedSongs.map((song) => {
                     const isRehydrating = song.status === 're-downloading' || rehydratingSongIds.includes(song.id);
                     const isExpired = song.status === 'expired' && !isRehydrating;
@@ -226,6 +226,11 @@ const LibraryGrid = ({ refreshTrigger, rehydratingSongIds = [], onPlay, onQueueN
                                     {song.lyrics_status === 'ready' && (
                                         <span className="px-2.5 py-1 rounded-md bg-google-gold/10 text-google-gold text-[10px] font-black uppercase tracking-widest border border-google-gold/20">
                                             LRC
+                                        </span>
+                                    )}
+                                    {song.lyrics_status === 'unsynced' && (
+                                        <span className="px-2.5 py-1 rounded-md bg-amber-500/10 text-amber-300 text-[10px] font-black uppercase tracking-widest border border-amber-500/30">
+                                            Unsynced
                                         </span>
                                     )}
                                     {isRehydrating && (

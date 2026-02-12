@@ -2,6 +2,26 @@
 
 All notable changes to the LyricVault project will be documented in this file.
 
+## [0.4.2] - 2026-02-12
+
+### Added
+
+- Global lyrics integrity mode (`strict_lrc`) with new settings endpoints:
+  - `GET /settings/lyrics-mode`
+  - `POST /settings/lyrics-mode`
+- Explicit `lyrics_status: unsynced` contract when fallback mode is enabled.
+- Social discovery bucket support with `platform=social` and `social_sources` query filter.
+- Startup legacy lyric migration pass with bounded batch queueing and idempotent dedupe keys.
+
+### Changed
+
+- `SongResponse` now includes `lyrics_synced` in library responses.
+- Lyric status contract expanded to `ready|processing|unsynced|unavailable`.
+- Worker retry flow now uses explicit `retrying` status for backoff windows.
+- Processing/Activity views now consume strict active/history job contracts.
+- Song Detail now surfaces synced vs unsynced badges and improved lyric export visibility.
+- Version surfaces and release metadata bumped from `0.3.5` to `0.4.2`.
+
 ## [0.3.5] - 2026-02-12
 
 ### Changed

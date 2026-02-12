@@ -165,6 +165,37 @@ def delete_genius_api_key():
     os.environ.pop("GENIUS_ACCESS_TOKEN", None)
 
 
+def get_strict_lrc_mode() -> bool:
+    """
+    Global lyric integrity mode.
+    True  -> strict LRC only
+    False -> allow unsynced/plain-text fallback
+    """
+    settings = _load_settings()
+    value = settings.get("strict_lrc")
+
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"true", "1", "yes", "on"}:
+            return True
+        if lowered in {"false", "0", "no", "off"}:
+            return False
+    if isinstance(value, int):
+        return bool(value)
+
+    # Default is strict mode.
+    return True
+
+
+def set_strict_lrc_mode(strict_lrc: bool):
+    """Persist global lyric integrity mode."""
+    settings = _load_settings()
+    settings["strict_lrc"] = bool(strict_lrc)
+    _save_settings(settings)
+
+
 def has_gemini_api_key() -> bool:
     """Check whether any Gemini API key is available."""
     return get_gemini_api_key() is not None

@@ -25,7 +25,16 @@
 }
 
 @layer base {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+    background-color: var(--color-google-bg);
+    color: var(--color-google-text);
+  }
+
   body {
+    margin: 0;
     background-color: var(--color-google-bg);
     color: var(--color-google-text);
     font-family: var(--font-sans);

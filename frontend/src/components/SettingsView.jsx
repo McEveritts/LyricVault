@@ -25,10 +25,13 @@ const SettingsView = () => {
     const [selectedModel, setSelectedModel] = useState('');
     const [savingModel, setSavingModel] = useState(false);
     const [testing, setTesting] = useState(false);
+    const [strictLrc, setStrictLrc] = useState(true);
+    const [savingLyricsMode, setSavingLyricsMode] = useState(false);
 
     useEffect(() => {
         fetchKeyStatuses();
         fetchModels();
+        fetchLyricsMode();
     }, []);
 
     const fetchKeyStatuses = async () => {
@@ -53,6 +56,17 @@ const SettingsView = () => {
             setSelectedModel(data.selected || '');
         } catch (err) {
             console.error('Failed to fetch models:', err);
+        }
+    };
+
+    const fetchLyricsMode = async () => {
+        try {
+            const res = await fetch(`${API_BASE}/settings/lyrics-mode`);
+            if (!res.ok) return;
+            const data = await res.json();
+            setStrictLrc(Boolean(data.strict_lrc));
+        } catch (err) {
+            console.error('Failed to fetch lyrics mode:', err);
         }
     };
 
@@ -170,6 +184,34 @@ const SettingsView = () => {
             console.error('Failed to save model:', err);
         } finally {
             setSavingModel(false);
+        }
+    };
+
+    const handleLyricsModeToggle = async () => {
+        const nextValue = !strictLrc;
+        setSavingLyricsMode(true);
+        try {
+            const res = await fetch(`${API_BASE}/settings/lyrics-mode`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ strict_lrc: nextValue })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setStrictLrc(Boolean(data.strict_lrc));
+                setMessage({
+                    type: 'success',
+                    text: data.strict_lrc
+                        ? 'Strict LRC mode enabled.'
+                        : 'Unsynced fallback mode enabled.',
+                });
+            } else {
+                setMessage({ type: 'error', text: data.detail || 'Failed to save lyrics mode.' });
+            }
+        } catch {
+            setMessage({ type: 'error', text: 'Failed to update lyrics mode.' });
+        } finally {
+            setSavingLyricsMode(false);
         }
     };
 
@@ -324,6 +366,46 @@ const SettingsView = () => {
                                 </a>
                             </div>
                         </section>
+
+                        <section className="bg-google-surface rounded-3xl p-6 border border-google-surface-high">
+                            <div className="flex items-start gap-5">
+                                <div className="w-12 h-12 rounded-full bg-google-surface-high flex items-center justify-center flex-shrink-0 text-google-text">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+                                        <path fillRule="evenodd" d="M12 1.5a3.75 3.75 0 00-3.75 3.75v1.25H7.5A3.75 3.75 0 003.75 10.25v8A3.75 3.75 0 007.5 22h9a3.75 3.75 0 003.75-3.75v-8A3.75 3.75 0 0016.5 6.5h-.75V5.25A3.75 3.75 0 0012 1.5zm2.25 5V5.25a2.25 2.25 0 10-4.5 0v1.25h4.5z" clipRule="evenodd" />
+                                    </svg>
+                                </div>
+                                <div className="flex-1">
+                                    <h3 className="text-xl font-medium text-google-text">Lyrics Integrity Mode</h3>
+                                    <p className="text-sm text-google-text-secondary mt-1 leading-relaxed">
+                                        Control whether LyricVault accepts only synced LRC or also allows plain-text fallback.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="mt-6 bg-google-surface-high/40 border border-white/5 rounded-2xl p-4 flex items-center justify-between gap-4">
+                                <div className="min-w-0">
+                                    <p className="text-sm font-medium text-google-text">
+                                        {strictLrc ? 'Strict LRC Only' : 'Unsynced Fallback Allowed'}
+                                    </p>
+                                    <p className="text-xs text-google-text-secondary mt-1">
+                                        {strictLrc
+                                            ? 'Only valid timed LRC is treated as usable lyrics.'
+                                            : 'Plain text can be stored and shown as unsynced lyrics.'}
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={handleLyricsModeToggle}
+                                    disabled={savingLyricsMode}
+                                    className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors disabled:opacity-60 ${strictLrc ? 'bg-google-gold' : 'bg-google-surface-highest'}`}
+                                    aria-label="Toggle strict lyrics mode"
+                                    aria-pressed={strictLrc}
+                                >
+                                    <span
+                                        className={`inline-block h-5 w-5 transform rounded-full bg-black transition-transform ${strictLrc ? 'translate-x-8' : 'translate-x-1'}`}
+                                    />
+                                </button>
+                            </div>
+                        </section>
                     </div>
                 )}
 
@@ -415,7 +497,7 @@ const SettingsView = () => {
                 )}
 
                 <div className="text-center pt-8 pb-4">
-                    <p className="text-xs text-google-text-secondary opacity-50">LyricVault v0.3.5 &bull; Designed for Pixel</p>
+                    <p className="text-xs text-google-text-secondary opacity-50">LyricVault v0.4.2 &bull; Designed for Pixel</p>
                 </div>
             </main>
         </>

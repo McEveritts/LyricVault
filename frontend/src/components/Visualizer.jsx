@@ -1,50 +1,51 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 
 const Visualizer = ({ analyser, isPlaying, width = 200, height = 40 }) => {
     const canvasRef = useRef(null);
-    const requestRef = useRef();
+    const requestRef = useRef(null);
 
     useEffect(() => {
         const canvas = canvasRef.current;
-        if (!canvas || !analyser) return;
+        if (!canvas || !analyser) return undefined;
 
         const ctx = canvas.getContext('2d');
         const bufferLength = analyser.frequencyBinCount;
         const dataArray = new Uint8Array(bufferLength);
 
         const draw = () => {
-            if (!isPlaying) {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                requestRef.current = requestAnimationFrame(draw);
-                return;
-            }
-
             requestRef.current = requestAnimationFrame(draw);
-            analyser.getByteFrequencyData(dataArray);
-
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            const barWidth = (canvas.width / bufferLength) * 2.5;
-            let barHeight;
-            let x = 0;
+            if (!isPlaying) return;
 
-            for (let i = 0; i < bufferLength; i++) {
-                barHeight = (dataArray[i] / 255) * canvas.height;
+            analyser.getByteFrequencyData(dataArray);
+            const bars = Math.min(48, Math.floor(bufferLength * 0.65));
+            const centerX = canvas.width / 2;
+            const barWidth = Math.max(1.5, canvas.width / (bars * 2));
+            const baseY = canvas.height;
 
-                const gradient = ctx.createLinearGradient(0, canvas.height, 0, 0);
-                gradient.addColorStop(0, '#E3E3E3');
-                gradient.addColorStop(1, '#FFD700');
+            for (let i = 0; i < bars; i += 1) {
+                const value = dataArray[i] || 0;
+                const percent = value / 255;
+                const barHeight = Math.max(2, percent * canvas.height);
 
-                ctx.fillStyle = gradient;
-                ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+                const hue = 42 + (percent * 12);
+                const sat = 84 + (percent * 12);
+                const light = 42 + (percent * 44);
+                const alpha = 0.2 + (percent * 0.8);
+                ctx.fillStyle = `hsla(${hue}, ${sat}%, ${light}%, ${alpha})`;
 
-                x += barWidth + 1;
-                if (x > canvas.width) break;
+                const xLeft = centerX - (i + 1) * barWidth;
+                const xRight = centerX + (i * barWidth);
+                const y = baseY - barHeight;
+                const w = Math.max(1, barWidth - 1);
+
+                ctx.fillRect(xLeft, y, w, barHeight);
+                ctx.fillRect(xRight, y, w, barHeight);
             }
         };
 
-        requestRef.current = requestAnimationFrame(draw);
-
+        draw();
         return () => {
             if (requestRef.current) {
                 cancelAnimationFrame(requestRef.current);
@@ -57,7 +58,7 @@ const Visualizer = ({ analyser, isPlaying, width = 200, height = 40 }) => {
             ref={canvasRef}
             width={width}
             height={height}
-            className="opacity-50 pointer-events-none"
+            className="opacity-70 pointer-events-none"
         />
     );
 };

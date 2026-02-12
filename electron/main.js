@@ -147,6 +147,7 @@ function createWindow() {
         minWidth: 900,
         minHeight: 600,
         title: 'LyricVault',
+        autoHideMenuBar: true,
         backgroundColor: '#0A0F1E',
         show: false, // Don't show until ready
         webPreferences: {

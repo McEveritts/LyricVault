@@ -27,7 +27,7 @@ const ActivityView = () => {
                 const jobsRes = await fetch(`${API_BASE}/jobs/history`);
                 if (jobsRes.ok) {
                     const data = await jobsRes.json();
-                    setTasks(data);
+                    setTasks((data || []).filter(task => task.status === 'completed' || task.status === 'failed'));
                 }
             } catch (error) {
                 console.error("Failed to load activity view:", error);
@@ -71,7 +71,7 @@ const ActivityView = () => {
                 <section>
                     <div className="flex items-center gap-3 mb-4">
                         <h3 className="text-lg font-semibold text-white">Recent Tasks</h3>
-                        <span className="px-2 py-0.5 text-xs bg-purple-600/20 text-purple-400 rounded-full">
+                        <span className="px-2 py-0.5 text-xs bg-google-gold/10 text-google-gold rounded-full border border-google-gold/20">
                             {tasks.length} entries
                         </span>
                     </div>

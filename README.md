@@ -1,8 +1,8 @@
-# ![LyricVault Logo](./frontend/public/logo.svg) LyricVault v0.3.5
+# ![LyricVault Logo](./frontend/public/logo.svg) LyricVault v0.4.2
 
 ## The Ultimate Local Music Sanctuary - Powered by AI
 
-[![Version](https://img.shields.io/badge/version-0.3.5-E2C286?style=for-the-badge)](https://github.com/McEveritts/LyricVault)
+[![Version](https://img.shields.io/badge/version-0.4.2-E2C286?style=for-the-badge)](https://github.com/McEveritts/LyricVault)
 [![License: MIT](https://img.shields.io/badge/License-MIT-E2C286?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Build: Portable & Installer](https://img.shields.io/badge/Build-Portable%20%2B%20Installer-2B2D31?style=for-the-badge)](https://github.com/McEveritts/LyricVault/releases)
 
@@ -16,27 +16,27 @@ Instead of relying on streaming metadata that can change over time, LyricVault h
 
 ---
 
-## New in v0.3.5
+## New in v0.4.2
 
-### Security and Core Integrity
-- Hardened CORS policy and release-mode origin gating.
-- Ingestion/database behavior improved for safer retry flows.
-- Release hardening checks expanded and documented.
+### Lyrics Integrity and Control
+- Added a global strict lyrics mode toggle (`strict_lrc`) in Settings.
+- Strict mode now enforces true timed LRC for `ready` status.
+- Unsynced fallback mode now exposes explicit `unsynced` lyric status.
 
-### AI and Model Controls
-- Gemini model selection from Settings.
-- Audio transcription fallback when web lyric research fails.
-- API key validation before save.
+### Queue and Processing Contracts
+- Active queue now treats `retrying` as a first-class processing state.
+- Processing and Activity views are split by status contract at API source.
+- Startup migration now batches legacy non-LRC songs into controlled lyric regeneration jobs.
 
-### Reliability
-- Better task safety for background ingest/research flows.
-- Retry behavior improved for transient server failures and rate limits.
-- Dynamic FFmpeg discovery for local and packaged environments.
+### Discovery and Social Media
+- Discovery now supports a Social Media bucket with Instagram, TikTok, and Facebook subfilters.
+- Added source tags and best-effort social search guidance.
+- Direct social URLs are the reliable ingest path when keyword extractor support is limited.
 
-### UI and Workflow
-- Dedicated visualizer deck flow and icon system cleanup.
-- Queue actions integrated across Discovery/Library views.
-- Accessibility pass for icon-only controls.
+### UX and Release Hardening
+- Refined Song Detail synced/unsynced lyric presentation and export controls.
+- Updated mini visualizer to a stronger Gold-reactive style.
+- Full version-surface bump and release pipeline updates for `0.4.2`.
 
 ---
 
@@ -59,10 +59,10 @@ Instead of relying on streaming metadata that can change over time, LyricVault h
 Get the latest release artifacts from GitHub Releases or build locally.
 
 Option A (Installer):
-Run `LyricVault Setup 0.3.5.exe`.
+Run `LyricVault Setup 0.4.2.exe`.
 
 Option B (Portable):
-Run `LyricVault 0.3.5.exe`.
+Run `LyricVault 0.4.2.exe`.
 
 ### 2. Configuration
 

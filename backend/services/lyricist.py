@@ -24,7 +24,7 @@ class LyricistService:
         text = re.sub(r"\(\s*\)", "", text)
         return text.strip()
 
-    def transcribe(self, track_name: str, artist_name: str, file_path: str = None, status_callback=None) -> str | None:
+    def transcribe(self, track_name: str, artist_name: str, file_path: str = None, status_callback=None) -> dict | None:
         """
         Fetch lyrics using a multi-source approach:
         1. Try syncedlyrics databases first (Musixmatch, Netease, etc.)
@@ -36,30 +36,57 @@ class LyricistService:
             artist_name: Artist name
             file_path: Path to audio file (for transcription fallback)
         
-        Returns: LRC/lyrics string or None
+        Returns:
+            dict with:
+                - lyrics: raw lyric text
+                - source: source identifier
+                - is_synced: True if validate_lrc passes
+            or None when no source returns any lyrics.
         """
-        
+        fallback_unsynced = None
+
         # === Step 1: Try syncedlyrics ===
         if status_callback: status_callback("Searching lyric databases...")
         lyrics = self._try_syncedlyrics(track_name, artist_name, status_callback)
-        if lyrics and validate_lrc(lyrics):
-            return lyrics
+        if lyrics:
+            if validate_lrc(lyrics):
+                return {"lyrics": lyrics, "source": "syncedlyrics", "is_synced": True}
+            fallback_unsynced = fallback_unsynced or {
+                "lyrics": lyrics,
+                "source": "syncedlyrics",
+                "is_synced": False,
+            }
         
         # === Step 2: Try Gemini AI research ===
         print(f"syncedlyrics failed or invalid, trying Gemini research...")
         if status_callback: status_callback("Databases failed. Researching with AI...")
         lyrics = self._try_gemini_research(track_name, artist_name, status_callback)
-        if lyrics and validate_lrc(lyrics):
-            return lyrics
+        if lyrics:
+            if validate_lrc(lyrics):
+                return {"lyrics": lyrics, "source": "gemini_research", "is_synced": True}
+            fallback_unsynced = fallback_unsynced or {
+                "lyrics": lyrics,
+                "source": "gemini_research",
+                "is_synced": False,
+            }
         
         # === Step 3: Try Gemini audio transcription ===
         if file_path:
             print(f"Gemini research failed, trying audio transcription...")
             if status_callback: status_callback("Research failed. Listening to audio...")
             lyrics = self._try_gemini_transcription(file_path, track_name, artist_name, status_callback)
-            if lyrics and validate_lrc(lyrics):
-                return lyrics
+            if lyrics:
+                if validate_lrc(lyrics):
+                    return {"lyrics": lyrics, "source": "gemini_transcription", "is_synced": True}
+                fallback_unsynced = fallback_unsynced or {
+                    "lyrics": lyrics,
+                    "source": "gemini_transcription",
+                    "is_synced": False,
+                }
         
+        if fallback_unsynced:
+            return fallback_unsynced
+
         print(f"All lyric sources exhausted for: {track_name}")
         return None
     
