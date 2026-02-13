@@ -1,0 +1,29 @@
+name: lyricvault_mobile
+description: A new Flutter project for LyricVault.
+
+version: 4.5.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # Networking
+  dio: ^5.3.3
+  # State Management
+  provider: ^6.1.1
+  # Audio Playback
+  just_audio: ^0.9.36
+  # Images
+  cached_network_image: ^3.3.0
+  # Security (Shared Preferences)
+  flutter_secure_storage: ^9.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+
+flutter:
+  uses-material-design: true

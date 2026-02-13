@@ -56,7 +56,10 @@ electron/out/
 .DS_Store
 Thumbs.db
 
-# Flutter (kept in a separate worktree/branch; ignore locally to avoid build confusion)
-mobile_client/
-scripts/flutter_bridge.py
-scripts/test_standalone_api.py
+# Flutter
+mobile_client/.dart_tool/
+mobile_client/build/
+mobile_client/.metadata
+mobile_client/.idea/
+mobile_client/.vscode/
+mobile_client/*.iml
