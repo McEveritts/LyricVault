@@ -7,6 +7,7 @@ from sqlalchemy import text
 MIGRATIONS = [
     "0001_jobs_title_column",
     "0002_songs_album_id",
+    "0003_restore_song_columns",
 ]
 
 
@@ -51,6 +52,41 @@ def _migration_0002_songs_album_id(conn) -> bool:
     return False
 
 
+def _migration_0003_restore_song_columns(conn) -> bool:
+    inspector = conn.execute(text("PRAGMA table_info(songs);")).fetchall()
+    if not inspector:
+        return False
+    columns = [col[1] for col in inspector]
+    
+    changed = False
+    if "lyrics" not in columns:
+        conn.execute(text("ALTER TABLE songs ADD COLUMN lyrics TEXT;"))
+        changed = True
+    if "lyrics_synced" not in columns:
+        # SQLite doesn't have a specific BOOLEAN type, INTERGER 0/1 is standard.
+        # But SQLAlchemy emits BOOLEAN which maps to INTEGER usually.
+        # Let's use BOOLEAN in the SQL to be safe (SQLite accepts it as affinity).
+        conn.execute(text("ALTER TABLE songs ADD COLUMN lyrics_synced BOOLEAN DEFAULT 0;"))
+        changed = True
+    if "source_url" not in columns:
+        conn.execute(text("ALTER TABLE songs ADD COLUMN source_url VARCHAR;"))
+        changed = True
+    if "cover_url" not in columns:
+        conn.execute(text("ALTER TABLE songs ADD COLUMN cover_url VARCHAR;"))
+        changed = True
+    if "duration" not in columns:
+        conn.execute(text("ALTER TABLE songs ADD COLUMN duration INTEGER;"))
+        changed = True
+    if "lyrics_source" not in columns:
+        conn.execute(text("ALTER TABLE songs ADD COLUMN lyrics_source VARCHAR;"))
+        changed = True
+    if "file_path" not in columns:
+        conn.execute(text("ALTER TABLE songs ADD COLUMN file_path VARCHAR;"))
+        changed = True
+        
+    return changed
+
+
 def _apply_migration(conn, version: str) -> bool:
     if version == "0001_jobs_title_column":
         changed = _migration_0001_jobs_title_column(conn)
@@ -61,6 +97,13 @@ def _apply_migration(conn, version: str) -> bool:
         return changed
     if version == "0002_songs_album_id":
         changed = _migration_0002_songs_album_id(conn)
+        conn.execute(
+            text("INSERT INTO schema_migrations(version, applied_at) VALUES (:version, :applied_at)"),
+            {"version": version, "applied_at": datetime.now(timezone.utc)},
+        )
+        return changed
+    if version == "0003_restore_song_columns":
+        changed = _migration_0003_restore_song_columns(conn)
         conn.execute(
             text("INSERT INTO schema_migrations(version, applied_at) VALUES (:version, :applied_at)"),
             {"version": version, "applied_at": datetime.now(timezone.utc)},

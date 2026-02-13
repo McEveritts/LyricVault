@@ -35,6 +35,14 @@ class Song(Base):
     artist_id = Column(Integer, ForeignKey("artists.id"))
     album_id = Column(Integer, ForeignKey("albums.id"), nullable=True, index=True)
 
+    # Missing fields restored
+    lyrics = Column(Text, nullable=True)
+    lyrics_synced = Column(Boolean, default=False)
+    source_url = Column(String, nullable=True)
+    cover_url = Column(String, nullable=True)
+    duration = Column(Integer, nullable=True) # Seconds
+    lyrics_source = Column(String, nullable=True)
+    file_path = Column(String, nullable=True)
 
     artist = relationship("Artist", back_populates="songs")
     album = relationship("Album", back_populates="songs")
