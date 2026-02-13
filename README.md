@@ -1,8 +1,9 @@
-# ![LyricVault Logo](./frontend/public/logo.svg) LyricVault v0.4.82
+# ![LyricVault Logo](./frontend/public/logo.svg) LyricVault
 
 ## The Ultimate Local Music Sanctuary - Powered by AI
 
-[![Version](https://img.shields.io/badge/version-0.4.82-E2C286?style=for-the-badge)](https://github.com/McEveritts/LyricVault)
+[![Electron Desktop](https://img.shields.io/badge/electron_desktop-0.4.82_final-E2C286?style=for-the-badge)](https://github.com/McEveritts/LyricVault/releases/tag/v0.4.82)
+[![Flutter Clients](https://img.shields.io/badge/flutter_clients-0.5.0_dev-E2C286?style=for-the-badge)](https://github.com/McEveritts/LyricVault/tree/mobile/v0.5.0)
 [![License: MIT](https://img.shields.io/badge/License-MIT-E2C286?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Build: Portable & Installer](https://img.shields.io/badge/Build-Portable%20%2B%20Installer-2B2D31?style=for-the-badge)](https://github.com/McEveritts/LyricVault/releases)
 
@@ -16,7 +17,15 @@ Instead of relying on streaming metadata that can change over time, LyricVault h
 
 ---
 
-> Desktop (Electron/React) is frozen: **v0.4.82 is the final Electron/React release**. Ongoing client development continues in Flutter (separate mobile app).
+> Desktop (Electron/React) is frozen: **v0.4.82 is the final Electron/React release**. Ongoing client development continues in Flutter (desktop + mobile clients).
+
+## Flutter Development (v0.5.0)
+
+- Desktop client (Windows-first): `desktop_client/`
+  - Starts/supervises the Python backend on localhost (no backend = app refuses to run).
+  - Streams audio with auth headers using `just_audio`.
+- Mobile baseline: `mobile_client/`
+- Shared Dart package: `packages/lyricvault_core/`
 
 ## Final Electron/React Release (v0.4.82)
 
