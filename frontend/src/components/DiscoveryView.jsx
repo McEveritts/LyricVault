@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import API_BASE from '../config/api';
 
 const DiscoveryView = ({ onIngest, onQueueNext, onAddToQueue }) => {
@@ -9,6 +9,7 @@ const DiscoveryView = ({ onIngest, onQueueNext, onAddToQueue }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const isUrlQuery = /^https?:\/\//i.test(query.trim());
+    const pendingJobActionsRef = useRef({});
 
     const socialOptions = [
         { id: 'instagram', label: 'Instagram' },
@@ -43,6 +44,46 @@ const DiscoveryView = ({ onIngest, onQueueNext, onAddToQueue }) => {
         } finally {
             setLoading(false);
         }
+    };
+
+    useEffect(() => {
+        const onEvent = async (e) => {
+            const msg = e?.detail;
+            if (!msg || msg.event !== 'job') return;
+            const job = msg.data || {};
+            const pending = pendingJobActionsRef.current[job.id];
+            if (!pending) return;
+            if (job.status !== 'completed' && job.status !== 'failed') return;
+
+            delete pendingJobActionsRef.current[job.id];
+            try { pending.setStatus('idle'); } catch { /* best-effort */ }
+
+            if (job.status !== 'completed') return;
+
+            let songId = null;
+            try {
+                const parsed = JSON.parse(job.result_json || '{}');
+                songId = parsed.song_id;
+            } catch { songId = null; }
+            if (!songId) return;
+
+            try {
+                const songRes = await fetch(`${API_BASE}/song/${songId}`);
+                if (!songRes.ok) return;
+                const songData = await songRes.json();
+                const callback = pending.actionType === 'queueNext' ? onQueueNext : onAddToQueue;
+                if (callback && songData) callback(songData);
+            } catch (err) {
+                console.error('Failed to resolve song from SSE job:', err);
+            }
+        };
+
+        window.addEventListener('lyricvault:event', onEvent);
+        return () => window.removeEventListener('lyricvault:event', onEvent);
+    }, [onQueueNext, onAddToQueue]);
+
+    const registerPendingJob = (jobId, actionType, setStatus) => {
+        pendingJobActionsRef.current[jobId] = { actionType, setStatus };
     };
 
     return (
@@ -156,6 +197,7 @@ const DiscoveryView = ({ onIngest, onQueueNext, onAddToQueue }) => {
                                 onIngest={onIngest}
                                 onQueueNext={onQueueNext}
                                 onAddToQueue={onAddToQueue}
+                                registerPendingJob={registerPendingJob}
                             />
                         ))}
                     </div>
@@ -165,32 +207,8 @@ const DiscoveryView = ({ onIngest, onQueueNext, onAddToQueue }) => {
     );
 };
 
-const SearchResultItem = ({ result, onIngest, onQueueNext, onAddToQueue }) => {
+const SearchResultItem = ({ result, onIngest, registerPendingJob }) => {
     const [status, setStatus] = useState('idle'); // 'idle', 'ingesting', 'queuing'
-
-    const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-    const resolveSongFromJob = async (jobId, maxAttempts = 45) => {
-        for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-            const taskRes = await fetch(`${API_BASE}/tasks/${jobId}`);
-            if (!taskRes.ok) throw new Error(`Failed to read job ${jobId}`);
-            const task = await taskRes.json();
-            if (task.status === 'completed') {
-                let songId = null;
-                try {
-                    const resultData = JSON.parse(task.result_json || '{}');
-                    songId = resultData.song_id;
-                } catch { songId = null; }
-                if (!songId) return null;
-                const songRes = await fetch(`${API_BASE}/song/${songId}`);
-                if (!songRes.ok) throw new Error(`Failed to fetch song ${songId}`);
-                return await songRes.json();
-            }
-            if (task.status === 'failed') throw new Error(task.last_error || 'Ingest job failed');
-            await wait(1000);
-        }
-        return null;
-    };
 
     const handleAction = async (actionType) => {
         setStatus(actionType === 'ingest' ? 'ingesting' : 'queuing');
@@ -204,16 +222,16 @@ const SearchResultItem = ({ result, onIngest, onQueueNext, onAddToQueue }) => {
             const jobData = await response.json();
             if (onIngest) onIngest();
             if (actionType === 'queueNext' || actionType === 'addToQueue') {
-                const callback = actionType === 'queueNext' ? onQueueNext : onAddToQueue;
-                if (callback && jobData?.id) {
-                    const songData = await resolveSongFromJob(jobData.id);
-                    if (songData) callback(songData);
+                if (jobData?.id) {
+                    registerPendingJob?.(jobData.id, actionType, setStatus);
+                } else {
+                    setStatus('idle');
                 }
             }
         } catch (err) {
             console.error(`${actionType} failed:`, err);
         } finally {
-            setStatus('idle');
+            if (actionType === 'ingest') setStatus('idle');
         }
     };
 

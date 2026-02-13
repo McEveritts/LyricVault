@@ -35,7 +35,6 @@ const SettingsView = () => {
     const [strictLrc, setStrictLrc] = useState(true);
     const [savingLyricsMode, setSavingLyricsMode] = useState(false);
     const [ytdlpStatus, setYtdlpStatus] = useState(null);
-    const [updatingYtdlp, setUpdatingYtdlp] = useState(false);
 
     useEffect(() => {
         fetchKeyStatuses();
@@ -268,65 +267,12 @@ const SettingsView = () => {
         }
     };
 
-    const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
     const handleUpdateYtdlp = async () => {
-        setUpdatingYtdlp(true);
         setSystemMessage(null);
-        try {
-            const res = await fetch(`${API_BASE}/system/ytdlp/update`, { method: 'POST' });
-            if (!res.ok) {
-                const data = await res.json();
-                setSystemMessage({ type: 'error', text: data.detail || 'Failed to queue yt-dlp update.' });
-                return;
-            }
-            const job = await res.json();
-
-            let terminalJob = null;
-            for (let attempt = 0; attempt < 45; attempt += 1) {
-                const jobRes = await fetch(`${API_BASE}/jobs/${job.id}`);
-                if (!jobRes.ok) break;
-                const current = await jobRes.json();
-                if (current.status === 'completed' || current.status === 'failed') {
-                    terminalJob = current;
-                    break;
-                }
-                await wait(1500);
-            }
-
-            await fetchYtdlpStatus();
-
-            if (!terminalJob) {
-                setSystemMessage({ type: 'success', text: 'yt-dlp update queued. Check System status shortly.' });
-                return;
-            }
-
-            if (terminalJob.status === 'failed') {
-                setSystemMessage({ type: 'error', text: terminalJob.last_error || 'yt-dlp update job failed.' });
-                return;
-            }
-
-            let result = null;
-            try {
-                result = JSON.parse(terminalJob.result_json || '{}');
-            } catch {
-                result = null;
-            }
-
-            if (result?.status === 'success') {
-                setSystemMessage({ type: 'success', text: `yt-dlp updated successfully (${result.current_version || 'unknown version'}).` });
-            } else if (result?.status === 'rolled_back') {
-                setSystemMessage({ type: 'error', text: 'yt-dlp update failed smoke test and was rolled back.' });
-            } else {
-                setSystemMessage({ type: 'error', text: result?.error || 'yt-dlp update failed.' });
-            }
-        } catch (err) {
-            console.error('Failed to update yt-dlp:', err);
-            setSystemMessage({ type: 'error', text: 'Failed to update yt-dlp.' });
-        } finally {
-            await fetchYtdlpStatus();
-            setUpdatingYtdlp(false);
-        }
+        setSystemMessage({
+            type: 'error',
+            text: 'yt-dlp updates are delivered with LyricVault releases (self-update is not supported).',
+        });
     };
 
     const tabs = [
@@ -695,14 +641,14 @@ const SettingsView = () => {
                                 </div>
                                 <button
                                     onClick={handleUpdateYtdlp}
-                                    disabled={updatingYtdlp}
+                                    disabled={true}
                                     className="px-4 py-2 rounded-xl bg-google-gold text-black text-xs font-semibold disabled:opacity-50"
                                 >
-                                    {updatingYtdlp ? 'Updating...' : 'Check & Update yt-dlp'}
+                                    Updates via app releases
                                 </button>
                             </div>
                             <p className="text-[11px] text-google-text-secondary">
-                                Managed update runs a smoke extractor check and rolls back automatically on failure.
+                                yt-dlp is bundled; update LyricVault to receive yt-dlp updates.
                             </p>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

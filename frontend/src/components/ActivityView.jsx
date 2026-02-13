@@ -34,8 +34,24 @@ const ActivityView = ({ onViewSong, onTabChange }) => {
             }
         };
         fetchData();
-        const interval = setInterval(fetchData, 5000);
-        return () => clearInterval(interval);
+
+        let debounce = null;
+        const scheduleFetch = () => {
+            if (debounce) clearTimeout(debounce);
+            debounce = setTimeout(fetchData, 250);
+        };
+
+        const onEvent = (e) => {
+            const msg = e?.detail;
+            if (!msg || typeof msg !== 'object') return;
+            if (msg.event === 'job' || msg.event === 'song') scheduleFetch();
+        };
+
+        window.addEventListener('lyricvault:event', onEvent);
+        return () => {
+            if (debounce) clearTimeout(debounce);
+            window.removeEventListener('lyricvault:event', onEvent);
+        };
     }, []);
 
     return (
@@ -98,7 +114,7 @@ const ActivityView = ({ onViewSong, onTabChange }) => {
                                             } else {
                                                 if (onTabChange) onTabChange('library');
                                             }
-                                        } catch (e) {
+                                        } catch {
                                             if (onTabChange) onTabChange('library');
                                         }
                                     }} />
@@ -144,7 +160,9 @@ const TaskItem = ({ task, onClick }) => {
                 );
             }
         }
-    } catch (e) { }
+    } catch {
+        // Ignore malformed result_json.
+    }
 
     return (
         <div

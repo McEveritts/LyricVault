@@ -186,37 +186,45 @@ export default function App() {
   };
 
   React.useEffect(() => {
-    if (rehydratingSongIds.length === 0) return undefined;
+    const onEvent = async (e) => {
+      const msg = e?.detail;
+      if (!msg || msg.event !== 'job') return;
+      const job = msg.data || {};
+      if (job.type !== 'ingest_audio') return;
+      if (job.status !== 'completed' && job.status !== 'failed') return;
 
-    const interval = setInterval(async () => {
-      const pendingIds = [...rehydratingSongIds];
-      for (const songId of pendingIds) {
-        try {
-          const response = await fetch(`${API_BASE}/song/${songId}`);
-          if (!response.ok) continue;
-          const song = await response.json();
-          if (song.status === 'cached' && song.stream_url) {
-            setRehydratingSongIds(prev => prev.filter(id => id !== songId));
-            setRefreshKey(prev => prev + 1);
-            setViewedSong(prev => (prev?.id === song.id ? song : prev));
-            setCurrentSong(prev => {
-              if (prev?.id !== song.id) return prev;
-              return song;
-            });
-            if (currentSong?.id === song.id) {
-              setIsPlaying(true);
-            }
-          } else if (song.status === 'expired') {
-            setRehydratingSongIds(prev => prev.filter(id => id !== songId));
+      // Any ingest completion should refresh library views.
+      setRefreshKey(prev => prev + 1);
+
+      if (job.status !== 'completed') return;
+
+      let songId = null;
+      try {
+        const parsed = JSON.parse(job.result_json || '{}');
+        songId = parsed.song_id;
+      } catch { songId = null; }
+      if (!songId) return;
+
+      try {
+        const response = await fetch(`${API_BASE}/song/${songId}`);
+        if (!response.ok) return;
+        const song = await response.json();
+        if (song.status === 'cached' && song.stream_url) {
+          setRehydratingSongIds(prev => prev.filter(id => id !== songId));
+          setViewedSong(prev => (prev?.id === song.id ? song : prev));
+          setCurrentSong(prev => (prev?.id === song.id ? song : prev));
+          if (currentSong?.id === song.id) {
+            setIsPlaying(true);
           }
-        } catch (error) {
-          console.error('Polling rehydration status failed:', error);
         }
+      } catch (error) {
+        console.error('SSE rehydration handler failed:', error);
       }
-    }, 3000);
+    };
 
-    return () => clearInterval(interval);
-  }, [rehydratingSongIds, currentSong?.id]);
+    window.addEventListener('lyricvault:event', onEvent);
+    return () => window.removeEventListener('lyricvault:event', onEvent);
+  }, [currentSong?.id]);
 
   const handlePlayPause = () => {
     setIsPlaying(!isPlaying);

@@ -9,6 +9,7 @@ const ProcessingView = () => {
 
     useEffect(() => {
         let mounted = true;
+        let debounce = null;
 
         const fetchTasks = async () => {
             try {
@@ -26,10 +27,22 @@ const ProcessingView = () => {
         };
 
         fetchTasks();
-        const interval = setInterval(fetchTasks, 1500);
+
+        const scheduleFetch = () => {
+            if (debounce) clearTimeout(debounce);
+            debounce = setTimeout(fetchTasks, 150);
+        };
+
+        const onEvent = (e) => {
+            const msg = e?.detail;
+            if (!msg || typeof msg !== 'object') return;
+            if (msg.event === 'job') scheduleFetch();
+        };
+        window.addEventListener('lyricvault:event', onEvent);
         return () => {
             mounted = false;
-            clearInterval(interval);
+            if (debounce) clearTimeout(debounce);
+            window.removeEventListener('lyricvault:event', onEvent);
         };
     }, []);
 

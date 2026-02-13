@@ -11,6 +11,7 @@ const LibraryGrid = ({ refreshTrigger, rehydratingSongIds = [], onPlay, onQueueN
 
     useEffect(() => {
         let isMounted = true;
+        let debounce = null;
 
         const fetchLibrary = async () => {
             try {
@@ -26,11 +27,25 @@ const LibraryGrid = ({ refreshTrigger, rehydratingSongIds = [], onPlay, onQueueN
         };
 
         fetchLibrary();
-        const interval = setInterval(fetchLibrary, 5000);
+
+        const scheduleFetch = () => {
+            if (debounce) clearTimeout(debounce);
+            debounce = setTimeout(fetchLibrary, 250);
+        };
+
+        const onEvent = (e) => {
+            const msg = e?.detail;
+            if (!msg || typeof msg !== 'object') return;
+            if (msg.event === 'job' || msg.event === 'song') {
+                scheduleFetch();
+            }
+        };
+        window.addEventListener('lyricvault:event', onEvent);
 
         return () => {
             isMounted = false;
-            clearInterval(interval);
+            if (debounce) clearTimeout(debounce);
+            window.removeEventListener('lyricvault:event', onEvent);
         };
     }, [refreshTrigger]);
 
