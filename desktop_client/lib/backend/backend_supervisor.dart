@@ -5,16 +5,25 @@ import 'dart:math';
 
 import 'backend_instance.dart';
 
+typedef BackendStatusCallback = void Function(String message);
+typedef BackendLogCallback = void Function(String line);
+
 class BackendSupervisor {
   static Future<BackendInstance> start({
     Duration timeout = const Duration(seconds: 15),
+    BackendStatusCallback? onStatus,
+    BackendLogCallback? onLog,
   }) async {
+    onStatus?.call('Locating repo root...');
     final repoRoot = _findRepoRoot();
-    final backendScript = File('${repoRoot.path}${Platform.pathSeparator}backend${Platform.pathSeparator}main.py');
+    final backendScript =
+        File('${repoRoot.path}${Platform.pathSeparator}backend${Platform.pathSeparator}main.py');
     if (!backendScript.existsSync()) {
       throw Exception('Missing backend script: ${backendScript.path}');
     }
+    onStatus?.call('Found backend script: ${backendScript.path}');
 
+    onStatus?.call('Resolving Python interpreter...');
     final pythonExe = _resolvePythonExe(repoRoot);
     if (pythonExe == null) {
       throw Exception(
@@ -23,10 +32,13 @@ class BackendSupervisor {
         'or install Python and ensure `python` is available on PATH.',
       );
     }
+    onStatus?.call('Using Python: $pythonExe');
 
+    onStatus?.call('Picking a free port...');
     final port = await _pickPort();
     final token = _randomHex(32);
     final baseUrl = 'http://127.0.0.1:$port';
+    onStatus?.call('Starting backend on port $port...');
 
     final env = Map<String, String>.from(Platform.environment);
     env['LYRICVAULT_BACKEND_PORT'] = port.toString();
@@ -47,18 +59,28 @@ class BackendSupervisor {
     }
 
     // Pipe backend logs into the Flutter process output for debugging.
-    unawaited(process.stdout.transform(utf8.decoder).forEach((chunk) {
-      stdout.write('[backend] $chunk');
-    }));
-    unawaited(process.stderr.transform(utf8.decoder).forEach((chunk) {
-      stderr.write('[backend] $chunk');
-    }));
+    process.stdout
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .listen((line) {
+      stdout.writeln('[backend] $line');
+      onLog?.call('stdout: $line');
+    });
+    process.stderr
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .listen((line) {
+      stderr.writeln('[backend] $line');
+      onLog?.call('stderr: $line');
+    });
 
+    onStatus?.call('Waiting for backend health check...');
     final ready = await _waitForBackend(
       baseUrl: baseUrl,
       token: token,
       timeout: timeout,
       process: process,
+      onStatus: onStatus,
     );
 
     if (!ready) {
@@ -68,6 +90,7 @@ class BackendSupervisor {
       throw Exception('Backend failed to start within ${timeout.inSeconds}s');
     }
 
+    onStatus?.call('Backend ready ($baseUrl)');
     return BackendInstance(
       baseUrl: baseUrl,
       token: token,
@@ -140,14 +163,23 @@ class BackendSupervisor {
     required String token,
     required Duration timeout,
     required Process process,
+    BackendStatusCallback? onStatus,
   }) async {
     final http = HttpClient()..connectionTimeout = const Duration(seconds: 1);
     var exited = false;
     unawaited(process.exitCode.then((_) => exited = true));
+    final startedAt = DateTime.now();
+    var lastSecond = -1;
     final deadline = DateTime.now().add(timeout);
 
     while (DateTime.now().isBefore(deadline)) {
       if (exited) return false;
+
+      final elapsedSeconds = DateTime.now().difference(startedAt).inSeconds;
+      if (elapsedSeconds != lastSecond) {
+        lastSecond = elapsedSeconds;
+        onStatus?.call('Waiting for backend... ${elapsedSeconds}s / ${timeout.inSeconds}s');
+      }
 
       try {
         final req = await http.getUrl(Uri.parse('$baseUrl/'));

@@ -27,6 +27,8 @@ class LyricVaultDesktopBootstrap extends StatefulWidget {
 class _LyricVaultDesktopBootstrapState extends State<LyricVaultDesktopBootstrap> {
   Future<BackendInstance>? _backendFuture;
   BackendInstance? _backend;
+  final List<String> _statusLines = <String>[];
+  final List<String> _logLines = <String>[];
 
   @override
   void initState() {
@@ -35,11 +37,34 @@ class _LyricVaultDesktopBootstrapState extends State<LyricVaultDesktopBootstrap>
   }
 
   Future<BackendInstance> _startBackend() async {
+    _appendStatus('Bootstrapping desktop client...');
     final backend = await BackendSupervisor.start(
       timeout: const Duration(seconds: 30),
+      onStatus: _appendStatus,
+      onLog: _appendLog,
     );
     _backend = backend;
     return backend;
+  }
+
+  void _appendStatus(String message) {
+    if (!mounted) return;
+    setState(() {
+      _statusLines.add(message);
+      if (_statusLines.length > 60) {
+        _statusLines.removeRange(0, _statusLines.length - 60);
+      }
+    });
+  }
+
+  void _appendLog(String line) {
+    if (!mounted) return;
+    setState(() {
+      _logLines.add(line);
+      if (_logLines.length > 250) {
+        _logLines.removeRange(0, _logLines.length - 250);
+      }
+    });
   }
 
   Future<void> _retry() async {
@@ -48,6 +73,8 @@ class _LyricVaultDesktopBootstrapState extends State<LyricVaultDesktopBootstrap>
     await previous?.stop();
 
     setState(() {
+      _statusLines.clear();
+      _logLines.clear();
       _backendFuture = _startBackend();
     });
   }
@@ -84,7 +111,10 @@ class _LyricVaultDesktopBootstrapState extends State<LyricVaultDesktopBootstrap>
         future: _backendFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
-            return const _StartingBackendScreen();
+            return _StartingBackendScreen(
+              statusLines: _statusLines,
+              logLines: _logLines,
+            );
           }
 
           if (snapshot.hasError) {
@@ -92,6 +122,8 @@ class _LyricVaultDesktopBootstrapState extends State<LyricVaultDesktopBootstrap>
               error: snapshot.error ?? 'Unknown error',
               onRetry: _retry,
               onQuit: _quit,
+              statusLines: _statusLines,
+              logLines: _logLines,
             );
           }
 
@@ -118,32 +150,65 @@ class _LyricVaultDesktopBootstrapState extends State<LyricVaultDesktopBootstrap>
 }
 
 class _StartingBackendScreen extends StatelessWidget {
-  const _StartingBackendScreen();
+  final List<String> statusLines;
+  final List<String> logLines;
+
+  const _StartingBackendScreen({
+    required this.statusLines,
+    required this.logLines,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final current =
+        statusLines.isEmpty ? 'Starting backend...' : statusLines.last;
+
     return Scaffold(
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 520),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Starting LyricVault backend...',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 12),
-                const LinearProgressIndicator(),
-                const SizedBox(height: 12),
-                const Text(
-                  'LyricVault Desktop requires the local FastAPI backend. '
-                  'If startup fails, the app will exit instead of running without a backend.',
-                ),
-              ],
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 980),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Starting LyricVault',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(current),
+                  const SizedBox(height: 12),
+                  const LinearProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: ListView(
+                      children: [
+                        _LinesCard(
+                          title: 'Startup Steps',
+                          lines: statusLines,
+                          emptyText: 'No status yet.',
+                        ),
+                        const SizedBox(height: 12),
+                        _LinesCard(
+                          title: 'Backend Output',
+                          lines: logLines,
+                          emptyText: 'No backend output yet.',
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'LyricVault Desktop refuses to run without the backend.',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface.withAlpha(179),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -156,11 +221,15 @@ class _BackendFailedScreen extends StatelessWidget {
   final Object error;
   final Future<void> Function() onRetry;
   final Future<void> Function() onQuit;
+  final List<String> statusLines;
+  final List<String> logLines;
 
   const _BackendFailedScreen({
     required this.error,
     required this.onRetry,
     required this.onQuit,
+    required this.statusLines,
+    required this.logLines,
   });
 
   @override
@@ -214,8 +283,67 @@ class _BackendFailedScreen extends StatelessWidget {
                   ),
                 ],
               ),
+              if (statusLines.isNotEmpty || logLines.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                _LinesCard(
+                  title: 'Startup Steps',
+                  lines: statusLines,
+                  emptyText: 'No status captured.',
+                ),
+                const SizedBox(height: 12),
+                _LinesCard(
+                  title: 'Backend Output',
+                  lines: logLines,
+                  emptyText: 'No backend output captured.',
+                ),
+              ],
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LinesCard extends StatelessWidget {
+  final String title;
+  final List<String> lines;
+  final String emptyText;
+
+  const _LinesCard({
+    required this.title,
+    required this.lines,
+    required this.emptyText,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final text = lines.isEmpty ? emptyText : lines.join('\n');
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.black26,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            SelectableText(
+              text,
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.35,
+                color: Theme.of(context).colorScheme.onSurface.withAlpha(204),
+              ),
+            ),
+          ],
         ),
       ),
     );
