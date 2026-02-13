@@ -11,11 +11,10 @@ Desktop (Electron/React) and Mobile (Flutter) development are split to avoid bui
 ## Mobile (separate git worktree)
 
 - Path: `Antigravity_mobile` (sibling worktree)
-- Branch: `mobile/v4.5.0`
-- Versioning: `mobile_client/pubspec.yaml` (currently `4.5.0+1`)
+- Branch: `mobile/v0.5.0`
+- Versioning: `mobile_client/pubspec.yaml` (currently `0.5.0+1`)
 
 ### Why a worktree?
 
 - Keeps Node/Python desktop build outputs and Flutter build outputs separated by folder.
 - Lets you switch contexts without stashing or accidentally mixing version bumps.
-
