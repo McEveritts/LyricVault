@@ -640,6 +640,11 @@ const SettingsView = () => {
                                                 {model.pricing && (
                                                     <p className="text-[10px] text-google-gold/80 font-mono px-2">{model.pricing}</p>
                                                 )}
+                                                {model.cost_per_song && (
+                                                    <p className="text-[10px] text-emerald-300 font-mono px-2 bg-emerald-500/10 rounded-md border border-emerald-500/20 mt-1">
+                                                        {model.cost_per_song}
+                                                    </p>
+                                                )}
                                             </div>
                                         </div>
                                     </button>

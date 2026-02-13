@@ -113,7 +113,7 @@ const LibraryGrid = ({ refreshTrigger, rehydratingSongIds = [], onPlay, onQueueN
         <div className="space-y-8 animate-in fade-in duration-700">
             {/* Library Header / Controls - Only shown when NOT recentOnly */}
             {!recentOnly && (
-                <div className="flex flex-col gap-8">
+                <div className="flex flex-col gap-4 -mt-24">
                     {/* Filter Tabs */}
                     <div className="flex justify-center">
                         <div className="flex items-center gap-2 bg-google-surface/50 p-1.5 rounded-full border border-white/5 backdrop-blur-md">

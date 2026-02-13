@@ -14,21 +14,6 @@ def adapt_datetime_iso(val):
 def convert_datetime(val):
     return datetime.fromisoformat(val.decode())
 
-sqlite3.register_adapter(datetime, adapt_datetime_iso)
-sqlite3.register_converter("DATETIME", convert_datetime)
-sqlite3.register_converter("timestamp", convert_datetime)
-
-logger = logging.getLogger(__name__)
-
-# Resolve absolute path for database
-BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATABASE_PATH = os.path.join(BACKEND_DIR, "lyricvault_v2.db")
-DATABASE_URL = f"sqlite:///{DATABASE_PATH}"
-
-engine = create_engine(
-    DATABASE_URL, 
-    connect_args={"check_same_thread": False, "timeout": 30}
-)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def init_db():

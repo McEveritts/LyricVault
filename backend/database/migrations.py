@@ -6,6 +6,7 @@ from sqlalchemy import text
 
 MIGRATIONS = [
     "0001_jobs_title_column",
+    "0002_songs_album_id",
 ]
 
 
@@ -38,9 +39,28 @@ def _migration_0001_jobs_title_column(conn) -> bool:
     return False
 
 
+
+def _migration_0002_songs_album_id(conn) -> bool:
+    inspector = conn.execute(text("PRAGMA table_info(songs);")).fetchall()
+    if not inspector:
+        return False
+    columns = [col[1] for col in inspector]
+    if "album_id" not in columns:
+        conn.execute(text("ALTER TABLE songs ADD COLUMN album_id INTEGER REFERENCES albums(id);"))
+        return True
+    return False
+
+
 def _apply_migration(conn, version: str) -> bool:
     if version == "0001_jobs_title_column":
         changed = _migration_0001_jobs_title_column(conn)
+        conn.execute(
+            text("INSERT INTO schema_migrations(version, applied_at) VALUES (:version, :applied_at)"),
+            {"version": version, "applied_at": datetime.now(timezone.utc)},
+        )
+        return changed
+    if version == "0002_songs_album_id":
+        changed = _migration_0002_songs_album_id(conn)
         conn.execute(
             text("INSERT INTO schema_migrations(version, applied_at) VALUES (:version, :applied_at)"),
             {"version": version, "applied_at": datetime.now(timezone.utc)},

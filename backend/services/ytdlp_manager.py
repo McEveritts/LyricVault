@@ -1,6 +1,7 @@
 import importlib
 import subprocess
 import sys
+import os
 from datetime import datetime, timezone
 
 import yt_dlp
@@ -9,6 +10,18 @@ from . import settings_service
 
 SMOKE_TEST_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 PIP_TIMEOUT_SECONDS = 600
+
+def _get_user_lib_dir() -> str:
+    """Return the user-writable library directory for yt-dlp updates."""
+    app_data = os.environ.get("APPDATA", os.path.expanduser("~"))
+    lib_dir = os.path.join(app_data, "LyricVault", "py_libs")
+    os.makedirs(lib_dir, exist_ok=True)
+    return lib_dir
+
+# Ensure user lib dir is in sys.path so we can import updated modules
+USER_LIB_DIR = _get_user_lib_dir()
+if USER_LIB_DIR not in sys.path:
+    sys.path.insert(0, USER_LIB_DIR)
 
 
 def _now_iso() -> str:
@@ -59,6 +72,10 @@ class YtDlpManager:
         command = [sys.executable, "-m", "pip", "install"]
         if upgrade:
             command.append("--upgrade")
+        
+        # Target the user-writable directory
+        command.extend(["--target", USER_LIB_DIR])
+        
         command.append(package_spec)
         return subprocess.run(
             command,

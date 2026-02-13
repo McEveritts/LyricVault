@@ -11,9 +11,21 @@ from urllib.parse import urlparse, urlunparse
 
 # Add current directory to sys.path
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-LOG_DIR = os.path.join(BASE_DIR, "logs")
-DOWNLOADS_DIR = os.path.join(BASE_DIR, "downloads")
+# Use APPDATA for logs to ensure write permissions in installed builds
+APP_DATA = os.environ.get("APPDATA", os.path.expanduser("~"))
+
+LOG_DIR = os.path.join(APP_DATA, "LyricVault", "logs")
+DOWNLOADS_DIR = os.path.join(APP_DATA, "LyricVault", "downloads")
 sys.path.append(BASE_DIR)
+
+# Ensure yt-dlp from user-writable directory is preferred (if present)
+try:
+    app_data = os.environ.get("APPDATA", os.path.expanduser("~"))
+    user_lib_dir = os.path.join(app_data, "LyricVault", "py_libs")
+    if user_lib_dir not in sys.path:
+        sys.path.insert(0, user_lib_dir)
+except Exception as e:
+    pass # Fallback to standard environment
 
 # Configure Logging
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -33,6 +45,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
+
 import uvicorn
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -157,6 +170,8 @@ class ResearchRequest(BaseModel):
 
 class LyricsModeRequest(BaseModel):
     strict_lrc: bool
+
+
 
 def _duration_seconds(value) -> int | None:
     """Normalize duration values to integer seconds for API responses."""

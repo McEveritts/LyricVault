@@ -39,8 +39,8 @@ def _find_ffmpeg_dir():
 
 FFMPEG_DIR = _find_ffmpeg_dir()
 
-BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DOWNLOADS_DIR = os.path.join(BACKEND_DIR, "downloads")
+APP_DATA = os.environ.get("APPDATA", os.path.expanduser("~"))
+DOWNLOADS_DIR = os.path.join(APP_DATA, "LyricVault", "downloads")
 os.makedirs(DOWNLOADS_DIR, exist_ok=True)
 
 import logging
