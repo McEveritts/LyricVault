@@ -50,12 +50,12 @@ win:
       arch:
         - x64
   icon: assets/icon.ico
-  artifactName: "LyricVault ${version}.${ext}"
-  signAndEditExecutable: false
+  artifactName: "LyricVault.${version}.${ext}"
+  signAndEditExecutable: true
   forceCodeSigning: false
 
 nsis:
-  artifactName: "LyricVault Setup ${version}.${ext}"
+  artifactName: "LyricVault.Setup.${version}.${ext}"
   oneClick: false
   perMachine: true
   allowToChangeInstallationDirectory: true
@@ -65,3 +65,4 @@ nsis:
   installerHeader: "build/installerHeader.bmp"
   installerSidebar: "build/installerSidebar.bmp"
   include: "scripts/installer.nsh"
+  warningsAsErrors: false

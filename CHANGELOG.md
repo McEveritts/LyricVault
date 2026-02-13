@@ -2,6 +2,18 @@
 
 All notable changes to the LyricVault project will be documented in this file.
 
+## [0.4.6] - 2026-02-13
+
+### Fixed
+
+- **Windows Build**: `winCodeSign` extraction now works reliably by requiring Windows Developer Mode (symlink support) for release builds.
+- **NSIS Installer**: Refactored the custom include script (`scripts/installer.nsh`) to avoid MUI macro ordering warnings; NSIS warnings no longer fail builds (`warningsAsErrors: false`).
+- **Packaging**: Restored full `extraResources` packaging for the Python backend (`backend/`), embedded Python (`python-embed/`), and FFmpeg (`ffmpeg/`).
+
+### Changed
+
+- **Artifact Naming**: Normalized Windows artifact names to dot-separated format (`LyricVault.${version}.exe`, `LyricVault.Setup.${version}.exe`).
+
 ## [0.4.5] - 2026-02-13
 
 ### Added

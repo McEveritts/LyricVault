@@ -1,8 +1,8 @@
-# ![LyricVault Logo](./frontend/public/logo.svg) LyricVault v0.4.5
+# ![LyricVault Logo](./frontend/public/logo.svg) LyricVault v0.4.6
 
 ## The Ultimate Local Music Sanctuary - Powered by AI
 
-[![Version](https://img.shields.io/badge/version-0.4.5-E2C286?style=for-the-badge)](https://github.com/McEveritts/LyricVault)
+[![Version](https://img.shields.io/badge/version-0.4.6-E2C286?style=for-the-badge)](https://github.com/McEveritts/LyricVault)
 [![License: MIT](https://img.shields.io/badge/License-MIT-E2C286?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Build: Portable & Installer](https://img.shields.io/badge/Build-Portable%20%2B%20Installer-2B2D31?style=for-the-badge)](https://github.com/McEveritts/LyricVault/releases)
 
@@ -16,26 +16,20 @@ Instead of relying on streaming metadata that can change over time, LyricVault h
 
 ---
 
-## New in v0.4.5
+## New in v0.4.6
 
-### Security Hardening
+### Build & Packaging (Windows)
 
-- Backend now binds to `127.0.0.1` (localhost only) to prevent LAN exposure.
-- Tightened CORS origin allowlist and added security headers (`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`).
-- Electron renderer sandbox explicitly enabled for additional isolation.
-- Added a strict Content Security Policy (CSP) to restrict script execution and local API connections.
+- Fixed electron-builder `winCodeSign` extraction failures by requiring Windows Developer Mode for symlink support.
+- Refactored the custom NSIS include script to avoid MUI macro ordering warnings (and no longer fail the build on warnings).
+- Restored full `extraResources` packaging for the Python backend (`backend/`, `python-embed/`, `ffmpeg/`).
 
-### Codebase Hygiene
+### Features (From v0.4.5)
 
-- Removed 50+ obsolete artifacts (legacy logs, prompts, old release files).
-- Retired legacy `lyricvault.db` (v1) in favor of the current v2 schema.
-- Consolidated per-view footers into a single global `AppFooter`.
-
-### Fixes & Improvements
-
-- Fixed a potential crash in `LibraryGrid` when categories are undefined.
-- Consolidated versioning so frontend/backend metadata are derived from the root `package.json`.
-- Added custom branding assets for the Windows installer (header + sidebar).
+- **Gemini 3.0 Pro Support**: Optimized for the latest high-intelligence models.
+- **Lyrics Overlay Media Controls**: Hover-responsive playback controls (Play/Pause, Skip, Seek) in the full-screen lyrics view.
+- **Activity Log Navigation & Attribution**: Clickable task entries that navigate to the library, with distinct source identifiers (**Official Web** vs **AI Generated**).
+- **Lyric Source Identifiers**: Badges indicating whether content is Official, AI Researched, or AI Transcribed.
 
 ---
 
@@ -58,10 +52,10 @@ Instead of relying on streaming metadata that can change over time, LyricVault h
 Get the latest release artifacts from GitHub Releases or build locally.
 
 Option A (Installer):
-Run `LyricVault Setup 0.4.5.exe`.
+Run `LyricVault.Setup.0.4.6.exe`.
 
 Option B (Portable):
-Run `LyricVault 0.4.5.exe`.
+Run `LyricVault.0.4.6.exe`.
 
 ### 2. Configuration
 
