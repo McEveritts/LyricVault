@@ -59,7 +59,7 @@ async def lifespan(app: FastAPI):
         worker.stop()
 
 
-app = FastAPI(title="LyricVault API", version="0.4.3", lifespan=lifespan)
+app = FastAPI(title="LyricVault API", version="0.4.4", lifespan=lifespan)
 DEFAULT_BACKEND_PORT = 8000
 
 # Mount downloads directory

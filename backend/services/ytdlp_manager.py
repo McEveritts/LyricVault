@@ -24,14 +24,25 @@ def _truncate(text: str, limit: int = 400) -> str:
 class YtDlpManager:
     def get_version(self) -> str | None:
         try:
+            # Check if yt_dlp is actually imported
+            if 'yt_dlp' not in sys.modules:
+                print("[YtDlpManager] yt_dlp module not in sys.modules!")
+                return None
             return yt_dlp.version.__version__
-        except Exception:
+        except Exception as e:
+            print(f"[YtDlpManager] Failed to get version: {e}")
+            import traceback
+            traceback.print_exc()
             return None
 
     def _reload_module(self):
         global yt_dlp
         importlib.invalidate_caches()
-        yt_dlp = importlib.reload(yt_dlp)
+        try:
+            yt_dlp = importlib.reload(yt_dlp)
+            print(f"[YtDlpManager] Reloaded yt-dlp. New version: {self.get_version()}")
+        except Exception as e:
+             print(f"[YtDlpManager] Failed to reload yt-dlp: {e}")
 
     def smoke_test(self, url: str = SMOKE_TEST_URL) -> bool:
         opts = {

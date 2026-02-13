@@ -32,12 +32,25 @@ const LibraryGrid = ({ refreshTrigger, rehydratingSongIds = [], onPlay, onQueueN
         };
     }, [refreshTrigger]);
 
+    const [category, setCategory] = useState('All');
+
     const filteredAndSortedSongs = useMemo(() => {
         let result = [...songs];
 
         if (recentOnly) {
             // For recent only, strictly sort by date added (newest first) and take top 4
             return result.sort((a, b) => (b.id || 0) - (a.id || 0)).slice(0, 4);
+        }
+
+        // Category Filter
+        if (category !== 'All') {
+            if (category === 'Artists') {
+                if (category !== 'Songs') {
+                    result = [];
+                }
+            } else if (category === 'Albums' || category === 'Playlists') {
+                result = [];
+            }
         }
 
         // Filter
@@ -58,7 +71,7 @@ const LibraryGrid = ({ refreshTrigger, rehydratingSongIds = [], onPlay, onQueueN
         });
 
         return result;
-    }, [songs, searchQuery, sortBy, recentOnly]);
+    }, [songs, searchQuery, sortBy, recentOnly, category]);
 
     const sortOptions = {
         'date_added': 'Recently Added',
@@ -66,17 +79,29 @@ const LibraryGrid = ({ refreshTrigger, rehydratingSongIds = [], onPlay, onQueueN
         'artist': 'Artist'
     };
 
-    if (songs.length === 0) {
+    if (songs.length === 0 && !searchQuery) {
         return (
-            <div className="text-center py-24 border border-dashed border-google-surface-high rounded-[2.5rem] bg-google-surface/30 backdrop-blur-sm">
-                <div className="w-20 h-20 bg-google-surface-high rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner text-google-text-secondary">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-10 h-10 opacity-40">
-                        <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
-                    </svg>
-                </div>
-                <h3 className="text-xl font-medium text-google-text mb-2">Your library is empty</h3>
-                <p className="text-google-text-secondary text-sm max-w-sm mx-auto opacity-70">
-                    Your personal sanctuary is ready. Paste a song link to start your collection.
+            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center animate-in fade-in zoom-in duration-500">
+                {!recentOnly && (
+                    <div className="flex items-center gap-2 mb-20 bg-google-surface/50 p-1.5 rounded-full border border-white/5 backdrop-blur-md">
+                        {categories.map((cat) => (
+                            <button
+                                key={cat}
+                                onClick={() => setCategory(cat)}
+                                className={`px-6 py-2 rounded-full text-sm font-medium transition-all duration-300 ${category === cat
+                                    ? 'bg-google-surface-high text-white shadow-lg shadow-black/20'
+                                    : 'text-google-text-secondary hover:text-white hover:bg-white/5'
+                                    }`}
+                            >
+                                {cat}
+                            </button>
+                        ))}
+                    </div>
+                )}
+
+                <h3 className="text-3xl font-bold text-white mb-4 tracking-tight">Your Library is Empty</h3>
+                <p className="text-google-text-secondary text-lg max-w-md mx-auto leading-relaxed">
+                    Follow artists, save albums, like tracks, or create playlists to see them here.
                 </p>
             </div>
         );
@@ -86,52 +111,72 @@ const LibraryGrid = ({ refreshTrigger, rehydratingSongIds = [], onPlay, onQueueN
         <div className="space-y-8 animate-in fade-in duration-700">
             {/* Library Header / Controls - Only shown when NOT recentOnly */}
             {!recentOnly && (
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-google-surface/40 p-3 rounded-[2rem] border border-white/5 backdrop-blur-xl pl-6 relative z-30">
-                    <div className="relative flex-1 max-w-md group">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-google-text-secondary pointer-events-none group-focus-within:text-google-gold transition-colors">
-                            <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clipRule="evenodd" />
-                        </svg>
-                        <input
-                            type="text"
-                            placeholder="Search your library..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full bg-google-surface-high/50 border-none rounded-2xl py-3 pl-11 pr-4 text-sm text-google-text placeholder-google-text-secondary/40 focus:ring-2 focus:ring-google-gold/30 focus:outline-none transition-all"
-                        />
+                <div className="flex flex-col gap-8">
+                    {/* Filter Tabs */}
+                    <div className="flex justify-center">
+                        <div className="flex items-center gap-2 bg-google-surface/50 p-1.5 rounded-full border border-white/5 backdrop-blur-md">
+                            {categories.map((cat) => (
+                                <button
+                                    key={cat}
+                                    onClick={() => setCategory(cat)}
+                                    className={`px-6 py-2 rounded-full text-sm font-medium transition-all duration-300 ${category === cat
+                                        ? 'bg-google-surface-high text-white shadow-lg shadow-black/20'
+                                        : 'text-google-text-secondary hover:text-white hover:bg-white/5'
+                                        }`}
+                                >
+                                    {cat}
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
-                    <div className="flex items-center gap-3 relative z-[45]">
-                        <span className="text-xs font-bold text-google-text-secondary uppercase tracking-widest opacity-60">Sort By</span>
-                        <div className="relative">
-                            <button
-                                onClick={() => setIsSortOpen(!isSortOpen)}
-                                className="bg-google-surface-high/50 hover:bg-google-surface-high rounded-2xl py-3 px-6 text-sm text-google-text font-medium flex items-center gap-2 min-w-[160px] justify-between transition-colors"
-                            >
-                                {sortOptions[sortBy]}
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={`w-4 h-4 transition-transform ${isSortOpen ? 'rotate-180' : ''}`}>
-                                    <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-                                </svg>
-                            </button>
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-google-surface/40 p-3 rounded-[2rem] border border-white/5 backdrop-blur-xl pl-6 relative z-30">
+                        <div className="relative flex-1 max-w-md group">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-google-text-secondary pointer-events-none group-focus-within:text-google-gold transition-colors">
+                                <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clipRule="evenodd" />
+                            </svg>
+                            <input
+                                type="text"
+                                placeholder={`Search in ${category}...`}
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full bg-google-surface-high/50 border-none rounded-2xl py-3 pl-11 pr-4 text-sm text-google-text placeholder-google-text-secondary/40 focus:ring-2 focus:ring-google-gold/30 focus:outline-none transition-all"
+                            />
+                        </div>
 
-                            {isSortOpen && (
-                                <>
-                                    <div className="fixed inset-0 z-10" onClick={() => setIsSortOpen(false)} />
-                                    <div className="absolute right-0 top-full mt-2 w-full bg-google-surface-high border border-white/5 rounded-2xl shadow-xl overflow-hidden z-20 flex flex-col p-1">
-                                        {Object.entries(sortOptions).map(([value, label]) => (
-                                            <button
-                                                key={value}
-                                                onClick={() => {
-                                                    setSortBy(value);
-                                                    setIsSortOpen(false);
-                                                }}
-                                                className={`text-left px-4 py-3 text-sm rounded-xl transition-colors ${sortBy === value ? 'bg-white/10 text-white font-medium' : 'text-google-text-secondary hover:text-white hover:bg-white/5'}`}
-                                            >
-                                                {label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </>
-                            )}
+                        <div className="flex items-center gap-3 relative z-[45]">
+                            <span className="text-xs font-bold text-google-text-secondary uppercase tracking-widest opacity-60">Sort By</span>
+                            <div className="relative">
+                                <button
+                                    onClick={() => setIsSortOpen(!isSortOpen)}
+                                    className="bg-google-surface-high/50 hover:bg-google-surface-high rounded-2xl py-3 px-6 text-sm text-google-text font-medium flex items-center gap-2 min-w-[160px] justify-between transition-colors"
+                                >
+                                    {sortOptions[sortBy]}
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={`w-4 h-4 transition-transform ${isSortOpen ? 'rotate-180' : ''}`}>
+                                        <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                                    </svg>
+                                </button>
+
+                                {isSortOpen && (
+                                    <>
+                                        <div className="fixed inset-0 z-10" onClick={() => setIsSortOpen(false)} />
+                                        <div className="absolute right-0 top-full mt-2 w-full bg-google-surface-high border border-white/5 rounded-2xl shadow-xl overflow-hidden z-20 flex flex-col p-1">
+                                            {Object.entries(sortOptions).map(([value, label]) => (
+                                                <button
+                                                    key={value}
+                                                    onClick={() => {
+                                                        setSortBy(value);
+                                                        setIsSortOpen(false);
+                                                    }}
+                                                    className={`text-left px-4 py-3 text-sm rounded-xl transition-colors ${sortBy === value ? 'bg-white/10 text-white font-medium' : 'text-google-text-secondary hover:text-white hover:bg-white/5'}`}
+                                                >
+                                                    {label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -253,18 +298,46 @@ const LibraryGrid = ({ refreshTrigger, rehydratingSongIds = [], onPlay, onQueueN
                 })}
             </div>
 
-            {filteredAndSortedSongs.length === 0 && songs.length > 0 && (
-                <div className="text-center py-20">
-                    <p className="text-google-text-secondary opacity-50">No results matching "{searchQuery}"</p>
-                    <button
-                        onClick={() => setSearchQuery('')}
-                        className="text-google-gold text-sm font-medium mt-2 hover:underline"
-                    >
-                        Clear search
-                    </button>
+            {filteredAndSortedSongs.length === 0 && (
+                <div className="space-y-8 animate-in fade-in duration-700">
+                    {!recentOnly && (
+                        <div className="flex flex-col items-center mb-12">
+                            <div className="flex items-center gap-2 bg-google-surface/50 p-1.5 rounded-full border border-white/5 backdrop-blur-md">
+                                {categories.map((cat) => (
+                                    <button
+                                        key={cat}
+                                        onClick={() => setCategory(cat)}
+                                        className={`px-6 py-2 rounded-full text-sm font-medium transition-all duration-300 ${category === cat
+                                            ? 'bg-google-surface-high text-white shadow-lg shadow-black/20'
+                                            : 'text-google-text-secondary hover:text-white hover:bg-white/5'
+                                            }`}
+                                    >
+                                        {cat}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="flex flex-col items-center justify-center min-h-[40vh] text-center">
+                        <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">
+                            {searchQuery ? `No results for "${searchQuery}"` : `No ${category} found`}
+                        </h3>
+                        <p className="text-google-text-secondary text-base max-w-sm mx-auto">
+                            Try adjusting your filters or search query.
+                        </p>
+                        {searchQuery && (
+                            <button
+                                onClick={() => setSearchQuery('')}
+                                className="text-google-gold text-sm font-medium mt-4 hover:underline"
+                            >
+                                Clear search
+                            </button>
+                        )}
+                    </div>
                 </div>
             )}
-        </div>
+        </div >
     );
 };
 

@@ -57,8 +57,10 @@ win:
 nsis:
   artifactName: "LyricVault Setup ${version}.${ext}"
   oneClick: false
+  perMachine: true
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: LyricVault
-
+  installerHeader: "build/installerHeader.bmp"
+  installerSidebar: "build/installerSidebar.bmp"

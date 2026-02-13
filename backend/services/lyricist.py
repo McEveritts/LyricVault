@@ -186,14 +186,27 @@ class LyricistService:
 
     def validate_genius_token(self, token: str) -> bool:
         """Lightweight validation for Genius Access Token."""
-        if not token or len(token) < 20:
+        if not token or not isinstance(token, str):
             return False
+            
+        clean_token = token.strip()
+        if len(clean_token) < 5:
+            return False
+            
         try:
-            import requests
-            headers = {"Authorization": f"Bearer {token}"}
+            import requests # Lazy import to avoid hard dependency if not used elsewhere
+            headers = {"Authorization": f"Bearer {clean_token}"}
+            # lower timeout to fail faster, user is waiting
             res = requests.get("https://api.genius.com/account", headers=headers, timeout=5)
-            return res.status_code == 200
-        except Exception:
+            
+            if res.status_code == 200:
+                print(f"[Lyricist] Genius token validated successfully.")
+                return True
+                
+            print(f"[Lyricist] Genius token validation failed. Status: {res.status_code}")
+            return False
+        except Exception as e:
+            print(f"[Lyricist] Genius token validation error: {e}")
             return False
 
 lyricist = LyricistService()

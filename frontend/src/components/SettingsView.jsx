@@ -123,9 +123,9 @@ const SettingsView = () => {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    client_id: geniusClientId,
-                    client_secret: geniusClientSecret,
-                    access_token: geniusAccessToken
+                    client_id: (geniusClientId || '').trim(),
+                    client_secret: (geniusClientSecret || '').trim(),
+                    access_token: (geniusAccessToken || '').trim()
                 })
             });
             const data = await res.json();
@@ -202,7 +202,7 @@ const SettingsView = () => {
             const res = await fetch(`${API_BASE}/settings/test-genius-credentials`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ access_token: geniusAccessToken })
+                body: JSON.stringify({ access_token: geniusAccessToken.trim() })
             });
             const data = await res.json();
             if (res.ok) {
@@ -682,7 +682,7 @@ const SettingsView = () => {
                 )}
 
                 <div className="text-center pt-8 pb-4">
-                    <p className="text-xs text-google-text-secondary opacity-50">LyricVault v0.4.3 &bull; Designed by McEveritts</p>
+                    <p className="text-xs text-google-text-secondary opacity-50">LyricVault v0.4.4 &bull; Designed by McEveritts</p>
                 </div>
             </main>
         </>

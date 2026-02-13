@@ -10,6 +10,7 @@ import requests
 import re
 from urllib.parse import urlparse
 from fastapi import HTTPException
+from bs4 import BeautifulSoup
 
 # Resolve Node.js for yt-dlp (avoids JS runtime warnings)
 def _find_node_path():
@@ -262,6 +263,83 @@ class IngestionService:
         except Exception:
             return False
 
+    def _search_google(self, query: str, platform: str, limit: int = 5) -> list[dict]:
+        """
+        Fallback search using Google to find social media links.
+        This is necessary because yt-dlp does not support search for these platforms.
+        """
+        try:
+            site_map = {
+                "tiktok": "tiktok.com",
+                "instagram": "instagram.com",
+                "facebook": "facebook.com",
+            }
+            site = site_map.get(platform)
+            if not site:
+                return []
+
+            search_query = f"site:{site} {query}"
+            url = f"https://www.google.com/search?q={requests.utils.quote(search_query)}"
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+            }
+            
+            resp = requests.get(url, headers=headers, timeout=10)
+            if resp.status_code != 200:
+                logger.warning(f"Google search failed with status {resp.status_code}")
+                return []
+
+            soup = BeautifulSoup(resp.text, 'html.parser')
+            results = []
+            
+            # This selector is fragile and may change, but it's a common valid one for Google results
+            # We look for all 'a' tags and filter those that look like results
+            for a in soup.find_all('a'):
+                href = a.get('href')
+                if not href:
+                    continue
+                
+                # Handling Google's tracking links if processed by generic parsers, 
+                # but usually with this UA we get decent HTML.
+                # However, simpler to just check if href contains our site
+                # Clean Google tracking links
+                if "/url?" in href:
+                    try:
+                        from urllib.parse import parse_qs, unquote
+                        parsed = urlparse(href)
+                        query_params = parse_qs(parsed.query)
+                        if 'q' in query_params:
+                            href = query_params['q'][0]
+                    except Exception:
+                        pass
+                
+                # Check again after cleaning
+                if site in href and "google.com" not in href:
+                    # Clean the URL if needed, but usually it's fine
+                    title_elem = a.find('h3')
+                    title = title_elem.get_text() if title_elem else platform.capitalize() + " Link"
+                    
+                    results.append({
+                        "id": href, # Use URL as ID
+                        "title": title,
+                        "artist": platform.capitalize(), # Placeholder
+                        "uploader": platform.capitalize(),
+                        "url": href,
+                        "duration": None, # Cannot know duration from Google Search
+                        "thumbnail": None, # Cannot know thumbnail easily
+                        "platform": platform,
+                    })
+                    if len(results) >= limit:
+                        break
+            
+            if len(results) == 0:
+                logger.warning(f"Google search returned 0 results. Page title: {soup.title.string if soup.title else 'No Title'}")
+            
+            return results
+        except Exception as e:
+            logger.error(f"Google search error: {e}")
+            return []
+
     def _search_with_prefix(self, query: str, prefix: str, platform: str, limit: int = 5) -> list[dict]:
         search_query = f"{prefix}{query}"
         try:
@@ -331,6 +409,14 @@ class IngestionService:
         return []
 
     def search_platforms(self, query: str, platform: str, social_sources: str | None = None):
+        # Global Direct URL Handling
+        # If the query is a URL for a supported platform, handle it directly regardless of the 'platform' argument.
+        if self._is_url_query(query):
+            detected = self.parse_url(query)
+            if detected in ["tiktok", "instagram", "facebook", "youtube", "soundcloud"]:
+                logger.info(f"Direct URL detected for {detected}: {query}")
+                return self._search_direct_url(query, platform_hint=detected)
+
         if platform == "spotify":
             itunes_results = self.fetch_metadata_itunes(query, limit=5)
             if itunes_results:
@@ -353,23 +439,14 @@ class IngestionService:
 
         if platform == "social":
             selected_sources = self._normalize_social_sources(social_sources)
-            if self._is_url_query(query):
-                detected = self.parse_url(query)
-                if detected in selected_sources:
-                    return self._search_direct_url(query, platform_hint=detected)
-                return []
-
-            prefix_map = {
-                "tiktok": "tiktoksearch5:",
-                "instagram": "instagramsearch5:",
-                "facebook": "facebooksearch5:",
-            }
+            # URL check already handled above
+            
             merged: list[dict] = []
             for source in selected_sources:
-                prefix = prefix_map.get(source)
-                if not prefix:
-                    continue
-                merged.extend(self._search_with_prefix(query, prefix, source, limit=5))
+                logger.info(f"Searching {source} via Google for query '{query}'")
+                results = self._search_google(query, source, limit=3)
+                logger.info(f"Found {len(results)} results for {source}")
+                merged.extend(results)
 
             # Deduplicate by URL while preserving order.
             seen_urls: set[str] = set()
@@ -382,12 +459,12 @@ class IngestionService:
                 deduped.append(item)
             return deduped
 
+        if platform in ["tiktok", "instagram", "facebook"]:
+            return self._search_google(query, platform, limit=5)
+
         search_prefix = {
             "youtube": "ytsearch5:",
             "soundcloud": "scsearch5:",
-            "tiktok": "tiktoksearch5:",
-            "instagram": "instagramsearch5:",
-            "facebook": "facebooksearch5:",
         }.get(platform, "ytsearch5:")
         return self._search_with_prefix(query, search_prefix, platform, limit=5)
 
