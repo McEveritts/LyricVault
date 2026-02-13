@@ -1,0 +1,4 @@
+c9ff778b8396134a485eaf4b25733eb57571c9078bbb65efb81e5f30b0baca97 *latest.yml
+6fbe8eccd9dc174f4bbdb7dd122b5f2cd6d370ba5cb652ed3b5c93f6267c3bc9 *LyricVault.0.4.82.exe
+9fc0bafdab09f2a452c5bfc416e23afe3f653247938d8041795a2e9e0b98aec0 *LyricVault.Setup.0.4.82.exe
+df5cfb7d6325437059bf9d813a2f32fb7a24872d994511051d83454ec7d143bf *LyricVault.Setup.0.4.82.exe.blockmap
