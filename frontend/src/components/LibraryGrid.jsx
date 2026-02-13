@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import API_BASE from '../config/api';
 
+const categories = ['All', 'Songs', 'Artists', 'Albums', 'Playlists'];
+
 const LibraryGrid = ({ refreshTrigger, rehydratingSongIds = [], onPlay, onQueueNext, onAddToQueue, onView, recentOnly = false }) => {
     const [songs, setSongs] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');

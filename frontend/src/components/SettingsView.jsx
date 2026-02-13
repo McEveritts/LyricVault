@@ -681,9 +681,6 @@ const SettingsView = () => {
                     </section>
                 )}
 
-                <div className="text-center pt-8 pb-4">
-                    <p className="text-xs text-google-text-secondary opacity-50">LyricVault v0.4.4 &bull; Designed by McEveritts</p>
-                </div>
             </main>
         </>
     );

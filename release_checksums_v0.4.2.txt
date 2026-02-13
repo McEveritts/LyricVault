@@ -1,7 +1,0 @@
-# Populate after running `npm run dist` for v0.4.2 artifacts.
-# Expected filenames:
-# - LyricVault Setup 0.4.2.exe
-# - LyricVault 0.4.2.exe
-
-9AD034312E1CA713EA4484CAFF596A488444BE815C92DC98E425783317C645AA *LyricVault Setup 0.4.2.exe
-D39FBA27A6CF081C2E0B1460697C63EC60AD8E27DD830011B7D78410CD42E25D *LyricVault 0.4.2.exe

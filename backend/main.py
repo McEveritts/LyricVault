@@ -85,9 +85,16 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=False,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    return response
 
 class IngestRequest(BaseModel):
     url: str
@@ -762,4 +769,4 @@ def resolve_backend_port() -> int:
 
 if __name__ == "__main__":
     reload_enabled = os.getenv("LYRICVAULT_BACKEND_RELOAD", "0") == "1"
-    uvicorn.run("main:app", host="0.0.0.0", port=resolve_backend_port(), reload=reload_enabled)
+    uvicorn.run("main:app", host="127.0.0.1", port=resolve_backend_port(), reload=reload_enabled)

@@ -11,6 +11,7 @@ import ProcessingView from './components/ProcessingView';
 import SettingsView from './components/SettingsView';
 import SongDetailView from './components/SongDetailView';
 import DiscoveryView from './components/DiscoveryView';
+import AppFooter from './components/AppFooter';
 
 export default function App() {
   const [refreshKey, setRefreshKey] = useState(0);
@@ -420,7 +421,12 @@ export default function App() {
       {/* Main Content */}
       <div className={`flex-1 flex flex-col h-screen overflow-hidden relative z-10 bg-google-bg transition-all duration-300 ${isSidebarCollapsed ? 'w-[calc(100%-80px)]' : 'w-full'}`}>
         <div className="flex-1 overflow-y-auto pb-32 scroll-smooth w-full" ref={scrollRef} onScroll={handleScroll}>
-          {renderContent()}
+          <div className="min-h-full flex flex-col">
+            <div className="flex-1 min-h-0">
+              {renderContent()}
+            </div>
+            <AppFooter />
+          </div>
         </div>
       </div>
 

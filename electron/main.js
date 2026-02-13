@@ -185,6 +185,7 @@ function createWindow() {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,
             nodeIntegration: false,
+            sandbox: true,
             additionalArguments: [`--backend-port=${backendPort}`],
         },
         // Frameless with custom titlebar feel
