@@ -1,6 +1,6 @@
 import yt_dlp
 
-def test_search(platform, query):
+def run_search(platform, query):
     prefix = {
         "tiktok": "tiktoksearch1:",
     }.get(platform, "")
@@ -20,4 +20,4 @@ def test_search(platform, query):
         print(f"{platform} failed: {e}")
 
 if __name__ == "__main__":
-    test_search("tiktok", "funny cat")
+    run_search("tiktok", "funny cat")

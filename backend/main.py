@@ -58,8 +58,27 @@ async def lifespan(app: FastAPI):
     finally:
         worker.stop()
 
+def resolve_app_version() -> str:
+    raw = os.getenv("LYRICVAULT_APP_VERSION") or os.getenv("LYRICVAULT_VERSION")
+    if raw and raw.strip():
+        return raw.strip()
 
-app = FastAPI(title="LyricVault API", version="0.4.4", lifespan=lifespan)
+    # Dev fallback: read repo root package.json. In packaged builds this is inside asar,
+    # so Electron passes the version via env var above.
+    try:
+        pkg_path = os.path.abspath(os.path.join(BASE_DIR, "..", "package.json"))
+        with open(pkg_path, "r", encoding="utf-8") as f:
+            pkg = json.load(f)
+        version = pkg.get("version")
+        if isinstance(version, str) and version.strip():
+            return version.strip()
+    except Exception:
+        pass
+
+    return "unknown"
+
+APP_VERSION = resolve_app_version()
+app = FastAPI(title="LyricVault API", version=APP_VERSION, lifespan=lifespan)
 DEFAULT_BACKEND_PORT = 8000
 
 # Mount downloads directory
@@ -741,7 +760,7 @@ def trigger_ytdlp_update(db: Session = Depends(get_db)):
 
 @app.get("/")
 def read_root():
-    return {"message": "LyricVault Backend v0.4.3 is running"}
+    return {"message": f"LyricVault Backend v{APP_VERSION} is running", "version": APP_VERSION}
 
 def resolve_backend_port() -> int:
     raw = os.getenv("LYRICVAULT_BACKEND_PORT")

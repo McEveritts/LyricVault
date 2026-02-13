@@ -11,6 +11,7 @@ sys.path.insert(0, str(BACKEND_DIR))
 
 from main import ResearchRequest, research_lyrics_manual
 from services.lyricist import lyricist
+from services import settings_service
 
 
 class FakeDB:
@@ -47,6 +48,8 @@ def test_research_lyrics_keeps_event_loop_responsive(monkeypatch):
         return "Line 1\nLine 2"
 
     monkeypatch.setattr(lyricist, "_try_gemini_research", blocking_research)
+    # Make test deterministic regardless of persisted user settings.
+    monkeypatch.setattr(settings_service, "get_strict_lrc_mode", lambda: False)
 
     async def _run_case():
         job = asyncio.create_task(

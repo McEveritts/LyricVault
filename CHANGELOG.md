@@ -2,6 +2,30 @@
 
 All notable changes to the LyricVault project will be documented in this file.
 
+## [0.4.4] - 2026-02-13
+
+### Added
+
+- **Global Footer**: Integrated a centralized `AppFooter` for consistent versioning across all views.
+- **Security Gauntlet**:
+  - Restricted backend API binding to `127.0.0.1` (localhost only).
+  - Implemented a strict Content Security Policy (CSP) in `index.html`.
+  - Added security headers: `X-Content-Type-Options: nosniff` and `X-Frame-Options: DENY`.
+  - Enabled Electron `sandbox` mode for the renderer process.
+  - Served the production renderer via a privileged `app://.` protocol to keep CORS strict without allowing `Origin: null` / `file://` in production.
+- **Installer Branding**: Integrated custom header + sidebar assets for the Windows NSIS installer.
+
+### Changed
+
+- **Codebase Hygiene**: Purged 50+ obsolete artifacts, logs, and documentation files to streamline the repository.
+- **Version Management**: Consolidated versioning to derive from the root `package.json` (frontend compile-time + backend runtime via Electron env).
+- **UI Cleanup**: Removed redundant footer styling from `SettingsView`.
+
+### Fixed
+
+- **Library Stability**: Resolved an `undefined categories` reference in `LibraryGrid` causing potential runtime crashes.
+- **Database Consolidation**: Retired legacy `lyricvault.db` (v1) in favor of the current v2 schema.
+
 ## [0.4.3] - 2026-02-12
 
 ### Added

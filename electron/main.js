@@ -1,8 +1,20 @@
-const { app, BrowserWindow, dialog } = require('electron');
+const { app, BrowserWindow, dialog, protocol } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 const http = require('http');
 const net = require('net');
+
+protocol.registerSchemesAsPrivileged([
+    {
+        scheme: 'app',
+        privileges: {
+            standard: true,
+            secure: true,
+            supportFetchAPI: true,
+            corsEnabled: true,
+        },
+    },
+]);
 
 // Paths
 const isDev = !app.isPackaged;
@@ -39,6 +51,36 @@ function getWindowIconPath() {
         return path.join(__dirname, '..', 'assets', 'icon.ico');
     }
     return getResourcePath('assets', 'icon.ico');
+}
+
+function registerAppProtocol() {
+    const distDir = path.join(__dirname, '..', 'frontend', 'dist');
+    const distRoot = path.resolve(distDir);
+    const distRootLower = distRoot.toLowerCase();
+
+    protocol.registerFileProtocol('app', (request, callback) => {
+        try {
+            const url = new URL(request.url);
+            let pathname = decodeURIComponent(url.pathname || '');
+            if (pathname === '/' || pathname === '') {
+                pathname = '/index.html';
+            }
+
+            // Strip leading slash so path.resolve can't escape to filesystem root on Windows.
+            const relativePath = pathname.replace(/^\/+/, '');
+            const filePath = path.resolve(distRoot, relativePath);
+
+            if (!filePath.toLowerCase().startsWith(distRootLower + path.sep)) {
+                callback({ error: -10 }); // ACCESS_DENIED
+                return;
+            }
+
+            callback({ path: filePath });
+        } catch (err) {
+            console.error('Failed to resolve app:// URL', request.url, err);
+            callback({ error: -6 }); // FILE_NOT_FOUND
+        }
+    });
 }
 
 // Backend process
@@ -78,7 +120,9 @@ function startBackend(port) {
 
     const env = { ...process.env };
     env.LYRICVAULT_BACKEND_PORT = String(port);
+    env.LYRICVAULT_APP_VERSION = app.getVersion();
     process.env.LYRICVAULT_BACKEND_PORT = String(port);
+    process.env.LYRICVAULT_APP_VERSION = app.getVersion();
 
     // Set ffmpeg path for packaged app
     const ffmpegDir = getFfmpegDir();
@@ -186,7 +230,10 @@ function createWindow() {
             contextIsolation: true,
             nodeIntegration: false,
             sandbox: true,
-            additionalArguments: [`--backend-port=${backendPort}`],
+            additionalArguments: [
+                `--backend-port=${backendPort}`,
+                `--app-version=${app.getVersion()}`,
+            ],
         },
         // Frameless with custom titlebar feel
         titleBarStyle: 'default',
@@ -200,8 +247,7 @@ function createWindow() {
         mainWindow.webContents.openDevTools({ mode: 'detach' });
     } else {
         // In production, load built files
-        const indexPath = path.join(__dirname, '..', 'frontend', 'dist', 'index.html');
-        mainWindow.loadFile(indexPath);
+        mainWindow.loadURL('app://./index.html');
     }
 
     mainWindow.once('ready-to-show', () => {
@@ -229,6 +275,10 @@ if (!gotLock) {
 }
 
 app.whenReady().then(async () => {
+    if (!isDev) {
+        registerAppProtocol();
+    }
+
     try {
         backendPort = await findAvailablePort(8000, 100);
     } catch (err) {

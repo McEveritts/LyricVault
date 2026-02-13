@@ -1,8 +1,8 @@
-# ![LyricVault Logo](./frontend/public/logo.svg) LyricVault v0.4.3
+# ![LyricVault Logo](./frontend/public/logo.svg) LyricVault v0.4.4
 
 ## The Ultimate Local Music Sanctuary - Powered by AI
 
-[![Version](https://img.shields.io/badge/version-0.4.3-E2C286?style=for-the-badge)](https://github.com/McEveritts/LyricVault)
+[![Version](https://img.shields.io/badge/version-0.4.4-E2C286?style=for-the-badge)](https://github.com/McEveritts/LyricVault)
 [![License: MIT](https://img.shields.io/badge/License-MIT-E2C286?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Build: Portable & Installer](https://img.shields.io/badge/Build-Portable%20%2B%20Installer-2B2D31?style=for-the-badge)](https://github.com/McEveritts/LyricVault/releases)
 
@@ -16,27 +16,23 @@ Instead of relying on streaming metadata that can change over time, LyricVault h
 
 ---
 
-## New in v0.4.3
+## New in v0.4.4
 
-### UI and Brand Polish
-- Footer branding now reads "Designed by McEveritts".
-- Sidebar collapse toggle moved into the sidebar header for stronger layout flow.
-- Fixed tab-switch white flash by enforcing dark background continuity.
-- Library sort dropdown z-index increased to prevent clipping.
+### Security Hardening
+- Backend now binds to `127.0.0.1` (localhost only) to prevent LAN exposure.
+- Tightened CORS origin allowlist and added security headers (`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`).
+- Electron renderer sandbox explicitly enabled for additional isolation.
+- Added a strict Content Security Policy (CSP) to restrict script execution and local API connections.
 
-### Playback and Queue Experience
-- Integrated Queue redesigned as a docked extension of the Now Playing bar.
-- Queue reveal now uses fluid expansion/collapse transitions.
-- Lyrics overlay now supports click-to-seek on synced lines with hover feedback.
+### Codebase Hygiene
+- Removed 50+ obsolete artifacts (legacy logs, prompts, old release files).
+- Retired legacy `lyricvault.db` (v1) in favor of the current v2 schema.
+- Consolidated per-view footers into a single global `AppFooter`.
 
-### Visualizer and Overlay
-- Aura visualizer upgraded from block bars to fluid motion-blur wave rendering.
-- Added premium title/artist overlay styling in the visualizer deck.
-
-### Backend and Reliability
-- Added lightweight Genius token validation endpoint for in-app Settings testing.
-- Maintained robust worker claim/retry behavior and secure credentials persistence.
-- Confirmed frontend polling and API contracts for background discovery jobs.
+### Fixes & Improvements
+- Fixed a potential crash in `LibraryGrid` when categories are undefined.
+- Consolidated versioning so frontend/backend metadata are derived from the root `package.json`.
+- Added custom branding assets for the Windows installer (header + sidebar).
 
 ---
 
@@ -59,10 +55,10 @@ Instead of relying on streaming metadata that can change over time, LyricVault h
 Get the latest release artifacts from GitHub Releases or build locally.
 
 Option A (Installer):
-Run `LyricVault Setup 0.4.3.exe`.
+Run `LyricVault Setup 0.4.4.exe`.
 
 Option B (Portable):
-Run `LyricVault 0.4.3.exe`.
+Run `LyricVault 0.4.4.exe`.
 
 ### 2. Configuration
 

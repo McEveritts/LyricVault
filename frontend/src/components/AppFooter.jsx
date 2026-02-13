@@ -1,7 +1,7 @@
 import React from 'react';
 
 const AppFooter = () => {
-  const version = import.meta.env.VITE_APP_VERSION || '0.4.4';
+  const version = import.meta.env.VITE_APP_VERSION || 'unknown';
 
   return (
     <div className="text-center pt-8 pb-4">
@@ -13,4 +13,3 @@ const AppFooter = () => {
 };
 
 export default AppFooter;
-

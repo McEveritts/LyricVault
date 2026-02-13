@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 
 const rootPkgPath = path.resolve(__dirname, '..', 'package.json');
 const rootPkg = JSON.parse(fs.readFileSync(rootPkgPath, 'utf-8'));
-const appVersion = rootPkg?.version ?? '0.4.4';
+const appVersion = rootPkg?.version ?? 'unknown';
 
 // https://vite.dev/config/
 export default defineConfig({
