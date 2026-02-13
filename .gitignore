@@ -55,3 +55,8 @@ electron/out/
 # OS
 .DS_Store
 Thumbs.db
+
+# Flutter (kept in a separate worktree/branch; ignore locally to avoid build confusion)
+mobile_client/
+scripts/flutter_bridge.py
+scripts/test_standalone_api.py
