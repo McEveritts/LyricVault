@@ -1,7 +1,7 @@
 name: lyricvault_mobile
 description: A new Flutter project for LyricVault.
 
-version: 4.5.0+1
+version: 0.5.0+1
 
 environment:
   sdk: '>=3.0.0 <4.0.0'

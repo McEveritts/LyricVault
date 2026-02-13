@@ -21,7 +21,7 @@ def launch_standalone(port=8999):
     env = os.environ.copy()
     env["LYRICVAULT_BACKEND_PORT"] = str(port)
     env["LYRICVAULT_API_TOKEN"] = api_token
-    env["LYRICVAULT_APP_VERSION"] = "4.5.0-mobile"
+    env["LYRICVAULT_APP_VERSION"] = "0.5.0-mobile"
     
     print(f"--- LyricVault Standalone Bridge ---")
     print(f"Port:  {port}")
