@@ -1,15 +1,20 @@
 name: lyricvault_core
-description: "A new Flutter package project."
-version: 0.0.1
+description: Shared Dart/Flutter core library for LyricVault clients.
+version: 0.5.0
 homepage:
 
 environment:
-  sdk: ^3.11.0
-  flutter: ">=1.17.0"
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: ">=3.0.0"
 
 dependencies:
   flutter:
     sdk: flutter
+
+  # Networking (API client)
+  dio: ^5.3.3
+  # Audio playback (shared controller)
+  just_audio: ^0.9.36
 
 dev_dependencies:
   flutter_test:

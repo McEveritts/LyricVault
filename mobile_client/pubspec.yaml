@@ -1,6 +1,8 @@
 name: lyricvault_mobile
 description: A new Flutter project for LyricVault.
 
+publish_to: 'none'
+
 version: 0.5.0+1
 
 environment:
@@ -9,6 +11,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+
+  # Shared core (models, API, playback)
+  lyricvault_core:
+    path: ../packages/lyricvault_core
   # Networking
   dio: ^5.3.3
   # State Management

@@ -1,122 +1,417 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:lyricvault_core/lyricvault_core.dart';
+import 'package:provider/provider.dart';
+
+import 'backend/backend_instance.dart';
+import 'backend/backend_supervisor.dart';
+
+const _kBackground = Color(0xFF0A0F1E);
+const _kMiniPlayerBg = Color(0xFF0F1630);
 
 void main() {
-  runApp(const MyApp());
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const LyricVaultDesktopBootstrap());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class LyricVaultDesktopBootstrap extends StatefulWidget {
+  const LyricVaultDesktopBootstrap({super.key});
 
-  // This widget is the root of your application.
+  @override
+  State<LyricVaultDesktopBootstrap> createState() => _LyricVaultDesktopBootstrapState();
+}
+
+class _LyricVaultDesktopBootstrapState extends State<LyricVaultDesktopBootstrap> {
+  Future<BackendInstance>? _backendFuture;
+  BackendInstance? _backend;
+
+  @override
+  void initState() {
+    super.initState();
+    _backendFuture = _startBackend();
+  }
+
+  Future<BackendInstance> _startBackend() async {
+    final backend = await BackendSupervisor.start(
+      timeout: const Duration(seconds: 30),
+    );
+    _backend = backend;
+    return backend;
+  }
+
+  Future<void> _retry() async {
+    final previous = _backend;
+    _backend = null;
+    await previous?.stop();
+
+    setState(() {
+      _backendFuture = _startBackend();
+    });
+  }
+
+  Future<void> _quit() async {
+    final backend = _backend;
+    _backend = null;
+    await backend?.stop();
+    exit(1);
+  }
+
+  @override
+  void dispose() {
+    final backend = _backend;
+    if (backend != null) unawaited(backend.stop());
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      debugShowCheckedModeBanner: false,
+      title: 'LyricVault Desktop',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
+        brightness: Brightness.dark,
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.amber,
+          brightness: Brightness.dark,
+        ),
+        scaffoldBackgroundColor: _kBackground,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: FutureBuilder<BackendInstance>(
+        future: _backendFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const _StartingBackendScreen();
+          }
+
+          if (snapshot.hasError) {
+            return _BackendFailedScreen(
+              error: snapshot.error ?? 'Unknown error',
+              onRetry: _retry,
+              onQuit: _quit,
+            );
+          }
+
+          final backend = snapshot.data!;
+          return MultiProvider(
+            providers: [
+              Provider<BackendInstance>.value(value: backend),
+              Provider<LyricVaultApi>(
+                create: (_) => LyricVaultApi(
+                  baseUrl: backend.baseUrl,
+                  authToken: backend.token,
+                ),
+              ),
+              ChangeNotifierProvider<PlaybackController>(
+                create: (_) => PlaybackController(authToken: backend.token),
+              ),
+            ],
+            child: const LibraryPage(),
+          );
+        },
+      ),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
+class _StartingBackendScreen extends StatelessWidget {
+  const _StartingBackendScreen();
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Starting LyricVault backend...',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 12),
+                const LinearProgressIndicator(),
+                const SizedBox(height: 12),
+                const Text(
+                  'LyricVault Desktop requires the local FastAPI backend. '
+                  'If startup fails, the app will exit instead of running without a backend.',
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _BackendFailedScreen extends StatelessWidget {
+  final Object error;
+  final Future<void> Function() onRetry;
+  final Future<void> Function() onQuit;
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
+  const _BackendFailedScreen({
+    required this.error,
+    required this.onRetry,
+    required this.onQuit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('LyricVault')),
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 900),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Backend failed to start',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'LyricVault Desktop will not run without the backend. '
+                'Fix the backend issue and retry.',
+              ),
+              const SizedBox(height: 16),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.black26,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white12),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: SelectableText(
+                    error.toString(),
+                    style: TextStyle(color: Theme.of(context).colorScheme.error),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  FilledButton.icon(
+                    onPressed: () async => onRetry(),
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Retry'),
+                  ),
+                  const SizedBox(width: 12),
+                  OutlinedButton.icon(
+                    onPressed: () async => onQuit(),
+                    icon: const Icon(Icons.close),
+                    label: const Text('Quit'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class LibraryPage extends StatefulWidget {
+  const LibraryPage({super.key});
+
+  @override
+  State<LibraryPage> createState() => _LibraryPageState();
+}
+
+class _LibraryPageState extends State<LibraryPage> {
+  List<Song> _songs = const [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLibrary();
+  }
+
+  Future<void> _loadLibrary() async {
+    setState(() => _isLoading = true);
+    try {
+      final api = context.read<LyricVaultApi>();
+      final songs = await api.fetchLibrary();
+      setState(() {
+        _songs = songs;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading library: $e')),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
+    final player = context.watch<PlaybackController>();
+
     return Scaffold(
       appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+        title: const Text('LyricVault'),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh',
+            onPressed: _isLoading ? null : _loadLibrary,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: .center,
-          children: [
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+      body: Stack(
+        children: [
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : RefreshIndicator(
+                  onRefresh: _loadLibrary,
+                  child: ListView.builder(
+                    padding: EdgeInsets.only(
+                      bottom: player.currentSong == null ? 0 : 96,
+                    ),
+                    itemCount: _songs.length,
+                    itemBuilder: (context, index) {
+                      final song = _songs[index];
+                      final coverUrl = (song.coverUrl ?? '').trim();
+
+                      return ListTile(
+                        leading: coverUrl.isNotEmpty
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: CachedNetworkImage(
+                                  imageUrl: coverUrl,
+                                  width: 48,
+                                  height: 48,
+                                  fit: BoxFit.cover,
+                                  placeholder: (context, url) => const SizedBox(
+                                    width: 48,
+                                    height: 48,
+                                    child: DecoratedBox(
+                                      decoration: BoxDecoration(color: Colors.black26),
+                                      child: Center(
+                                        child: SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  errorWidget: (context, url, error) => const Icon(Icons.music_note),
+                                ),
+                              )
+                            : const Icon(Icons.music_note),
+                        title: Text(song.title),
+                        subtitle: Text(song.artist),
+                        onTap: () => context.read<PlaybackController>().playSong(song),
+                      );
+                    },
+                  ),
+                ),
+          const _MiniPlayer(),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniPlayer extends StatelessWidget {
+  const _MiniPlayer();
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<PlaybackController>(
+      builder: (context, player, child) {
+        final song = player.currentSong;
+        if (song == null) return const SizedBox.shrink();
+
+        final duration = player.duration ?? Duration.zero;
+        final position = player.position;
+        final maxMs = duration.inMilliseconds <= 0 ? 1.0 : duration.inMilliseconds.toDouble();
+
+        return Align(
+          alignment: Alignment.bottomCenter,
+          child: Container(
+            decoration: BoxDecoration(
+              color: _kMiniPlayerBg,
+              border: Border(
+                top: BorderSide(
+                  color: Colors.white.withAlpha(20),
+                ),
+              ),
             ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: SafeArea(
+              top: false,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              song.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            Text(
+                              song.artist,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.onSurface.withAlpha(179),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: player.isPlaying ? 'Pause' : 'Play',
+                        onPressed: () => player.togglePlayPause(),
+                        icon: Icon(player.isPlaying ? Icons.pause : Icons.play_arrow),
+                      ),
+                    ],
+                  ),
+                  Slider(
+                    value: position.inMilliseconds.clamp(0, maxMs.toInt()).toDouble(),
+                    max: maxMs,
+                    onChanged: (v) => player.seek(Duration(milliseconds: v.round())),
+                  ),
+                  if (player.lastError != null)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        player.lastError!,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
