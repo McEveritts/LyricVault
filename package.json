@@ -1,6 +1,6 @@
 {
     "name": "lyricvault",
-    "version": "0.4.7",
+    "version": "0.4.8",
     "description": "Your personal music sanctuary - AI-powered lyric research and local music library",
     "main": "electron/main.js",
     "private": true,
@@ -10,13 +10,17 @@
         "dev:electron": "wait-on tcp:5173 && electron .",
         "build:frontend": "cd frontend && npm run build",
         "setup:python": "powershell -ExecutionPolicy Bypass -File scripts/setup-python.ps1",
+        "audit": "npm run audit:node && npm run audit:frontend && npm run audit:python",
+        "audit:node": "npm audit --audit-level=high",
+        "audit:frontend": "npm --prefix frontend audit --audit-level=high",
+        "audit:python": "powershell -ExecutionPolicy Bypass -File scripts/audit-python.ps1",
         "dist": "npm run build:frontend && electron-builder",
         "dist:quick": "electron-builder"
     },
     "devDependencies": {
         "concurrently": "^9.2.1",
         "electron": "^35.0.0",
-        "electron-builder": "^25.1.8",
+        "electron-builder": "^26.7.0",
         "wait-on": "^9.0.1"
     },
     "author": "McEveritts",

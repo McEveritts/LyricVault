@@ -1,0 +1,45 @@
+name: Security Audit
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+  schedule:
+    - cron: "0 12 * * 1" # weekly
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install Node deps (root)
+        run: npm ci
+
+      - name: Install Node deps (frontend)
+        run: npm --prefix frontend ci
+
+      - name: npm audit (root)
+        run: npm audit --audit-level=high
+
+      - name: npm audit (frontend)
+        run: npm --prefix frontend audit --audit-level=high
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pip-audit
+        run: python -m pip install --upgrade pip pip-audit
+
+      - name: pip-audit
+        run: python -m pip_audit -r backend/requirements.lock.txt
+
