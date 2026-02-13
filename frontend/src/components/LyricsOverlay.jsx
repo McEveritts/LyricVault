@@ -1,13 +1,15 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import API_BASE from '../config/api';
 
-const LyricsOverlay = ({ song, isOpen, onClose, currentTime, onSeek }) => {
+const LyricsOverlay = ({ song, isOpen, onClose, currentTime, onSeek, isPlaying, onPlayPause, onNext, onPrevious }) => {
     const scrollContainerRef = useRef(null);
     const activeLineRef = useRef(null);
     const [isResearching, setIsResearching] = useState(false);
     const [userLyrics, setUserLyrics] = useState(null);
     const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash');
     const [statusMsg, setStatusMsg] = useState(null);
+    const [showControls, setShowControls] = useState(false);
+    const hideTimeoutRef = useRef(null);
 
     useEffect(() => {
         document.body.style.overflow = isOpen ? 'hidden' : 'unset';
@@ -118,7 +120,6 @@ const LyricsOverlay = ({ song, isOpen, onClose, currentTime, onSeek }) => {
         return parsedLyrics.findIndex(l => l.time === activeTime);
     }, [currentTime, parsedLyrics]);
 
-    // Auto-scroll logic
     useEffect(() => {
         if (activeIndex !== -1 && activeLineRef.current && scrollContainerRef.current) {
             activeLineRef.current.scrollIntoView({
@@ -128,6 +129,14 @@ const LyricsOverlay = ({ song, isOpen, onClose, currentTime, onSeek }) => {
         }
     }, [activeIndex]);
 
+    const handleMouseMove = () => {
+        setShowControls(true);
+        if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+        hideTimeoutRef.current = setTimeout(() => {
+            setShowControls(false);
+        }, 3000);
+    };
+
     if (!isOpen || !song) return null;
 
     const showResearchButton = !currentLyrics ||
@@ -135,9 +144,12 @@ const LyricsOverlay = ({ song, isOpen, onClose, currentTime, onSeek }) => {
         currentLyrics === "Lyrics not found.";
 
     return (
-        <div className="fixed inset-0 z-[100] bg-[#050505]/95 backdrop-blur-3xl animate-in fade-in duration-500 flex flex-col">
+        <div
+            onMouseMove={handleMouseMove}
+            className="fixed inset-0 z-[100] bg-[#050505]/95 backdrop-blur-3xl animate-in fade-in duration-500 flex flex-col"
+        >
             {/* Header */}
-            <div className="p-8 flex justify-between items-start bg-transparent relative z-20 max-w-6xl mx-auto w-full">
+            <div className={`p-8 flex justify-between items-start bg-transparent relative z-20 max-w-6xl mx-auto w-full transition-opacity duration-500 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
                 <div className="flex gap-6 items-center">
                     {song.cover_url && (
                         <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-2xl border border-white/5">
@@ -145,7 +157,24 @@ const LyricsOverlay = ({ song, isOpen, onClose, currentTime, onSeek }) => {
                         </div>
                     )}
                     <div className="flex flex-col">
-                        <h2 className="text-3xl font-bold text-white tracking-tight">{song.title}</h2>
+                        <div className="flex items-center gap-3">
+                            <h2 className="text-3xl font-bold text-white tracking-tight">{song.title}</h2>
+                            {song.lyrics_source === 'syncedlyrics' && (
+                                <span className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 text-[10px] font-bold uppercase tracking-wider border border-blue-500/20">
+                                    Official
+                                </span>
+                            )}
+                            {song.lyrics_source?.startsWith('gemini_research') && (
+                                <span className="px-2 py-0.5 rounded-full bg-google-gold/10 text-google-gold text-[10px] font-bold uppercase tracking-wider border border-google-gold/20">
+                                    AI Research
+                                </span>
+                            )}
+                            {song.lyrics_source === 'gemini_transcription' && (
+                                <span className="px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 text-[10px] font-bold uppercase tracking-wider border border-purple-500/20">
+                                    AI Transcription
+                                </span>
+                            )}
+                        </div>
                         <p className="text-google-gold/80 text-xl font-medium">{song.artist}</p>
                     </div>
                 </div>
@@ -219,6 +248,56 @@ const LyricsOverlay = ({ song, isOpen, onClose, currentTime, onSeek }) => {
                 )}
 
                 <div className="h-[40vh] w-full flex-shrink-0"></div> {/* Bottom spacer for scroll logic */}
+            </div>
+
+            {/* Media Controls Bar */}
+            <div className={`fixed bottom-0 left-0 right-0 p-12 bg-gradient-to-t from-black/80 to-transparent transition-all duration-500 z-50 ${showControls ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}>
+                <div className="max-w-4xl mx-auto flex flex-col gap-6">
+                    {/* Progress Bar */}
+                    <div className="flex items-center gap-8">
+                        <div className="flex-1">
+                            <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden cursor-pointer group relative" onClick={(e) => {
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                const x = e.clientX - rect.left;
+                                onSeek(x / rect.width * (song.duration || 0));
+                            }}>
+                                <div
+                                    className="h-full bg-google-gold transition-all duration-100"
+                                    style={{ width: `${(currentTime / (song.duration || 1)) * 100}%` }}
+                                />
+                                <div className="absolute top-0 bottom-0 left-0 w-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center">
+                                    <div className="h-4 w-4 bg-white rounded-full shadow-xl -ml-2" style={{ marginLeft: `calc(${(currentTime / (song.duration || 1)) * 100}% - 8px)` }} />
+                                </div>
+                            </div>
+                            <div className="flex justify-between mt-2 font-mono text-xs text-white/40 tracking-widest">
+                                <span>{Math.floor(currentTime / 60)}:{(Math.floor(currentTime % 60)).toString().padStart(2, '0')}</span>
+                                <span>{Math.floor(song.duration / 60)}:{(Math.floor(song.duration % 60)).toString().padStart(2, '0')}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Controls */}
+                    <div className="flex items-center justify-center gap-12">
+                        <button onClick={onPrevious} className="text-white/40 hover:text-white transition-colors active:scale-90">
+                            <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z" /></svg>
+                        </button>
+
+                        <button
+                            onClick={onPlayPause}
+                            className="w-20 h-20 rounded-full bg-white text-black flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-2xl shadow-white/10"
+                        >
+                            {isPlaying ? (
+                                <svg className="w-10 h-10" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg>
+                            ) : (
+                                <svg className="w-10 h-10 ml-2" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                            )}
+                        </button>
+
+                        <button onClick={onNext} className="text-white/40 hover:text-white transition-colors active:scale-90">
+                            <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" /></svg>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     );

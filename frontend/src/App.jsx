@@ -372,7 +372,7 @@ export default function App() {
           />
         );
       case 'activity':
-        return <ActivityView />;
+        return <ActivityView onViewSong={handleViewSong} onTabChange={setActiveTab} />;
       case 'processing':
         return <ProcessingView />;
       case 'settings':
@@ -470,10 +470,13 @@ export default function App() {
         />
       )}
       {rehydratingSongIds.length > 0 && (
-        <div className={`fixed top-6 right-6 z-[60] bg-google-surface/95 border border-google-surface-high rounded-2xl px-4 py-3 shadow-2xl backdrop-blur-md flex items-center gap-3 transition-all duration-300 ${isScrolled ? 'opacity-0 translate-y-[-20px] pointer-events-none' : 'opacity-100 translate-y-0'}`}>
+        <div
+          onClick={() => setActiveTab('processing')}
+          className={`fixed top-6 right-6 z-[60] bg-google-surface/95 border border-google-surface-high rounded-2xl px-4 py-3 shadow-2xl backdrop-blur-md flex items-center gap-3 transition-all duration-300 cursor-pointer hover:bg-google-surface hover:ring-1 hover:ring-google-gold/30 active:scale-95 group ${isScrolled ? 'opacity-0 translate-y-[-20px] pointer-events-none' : 'opacity-100 translate-y-0'}`}
+        >
           <span className="w-4 h-4 border-2 border-google-gold/40 border-t-google-gold rounded-full animate-spin"></span>
           <div className="flex flex-col">
-            <span className="text-sm font-semibold text-google-text">Preparing Audio...</span>
+            <span className="text-sm font-semibold text-google-text group-hover:text-google-gold transition-colors">Preparing Audio...</span>
             <span className="text-[11px] text-google-text-secondary">
               {rehydratingSongIds.length} track{rehydratingSongIds.length === 1 ? '' : 's'} in queue
             </span>
@@ -487,6 +490,10 @@ export default function App() {
         onClose={() => setShowLyrics(false)}
         currentTime={currentTime}
         onSeek={handleSeek}
+        isPlaying={isPlaying}
+        onPlayPause={handlePlayPause}
+        onNext={() => handleNext('manual')}
+        onPrevious={handlePrevious}
       />
     </div>
   );

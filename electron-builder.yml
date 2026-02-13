@@ -64,3 +64,4 @@ nsis:
   shortcutName: LyricVault
   installerHeader: "build/installerHeader.bmp"
   installerSidebar: "build/installerSidebar.bmp"
+  include: "scripts/installer.nsh"

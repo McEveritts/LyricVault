@@ -20,7 +20,9 @@ const SettingsView = () => {
     const [geniusStatus, setGeniusStatus] = useState(null);
     const [saving, setSaving] = useState(false);
     const [deleting, setDeleting] = useState(false);
-    const [message, setMessage] = useState(null);
+    const [geminiMessage, setGeminiMessage] = useState(null);
+    const [geniusMessage, setGeniusMessage] = useState(null);
+    const [systemMessage, setSystemMessage] = useState(null);
     const [showKey, setShowKey] = useState(false);
     const [showGeniusClientId, setShowGeniusClientId] = useState(false);
     const [showGeniusClientSecret, setShowGeniusClientSecret] = useState(false);
@@ -92,7 +94,7 @@ const SettingsView = () => {
     const handleSaveGemini = async () => {
         if (!geminiKey.trim()) return;
         setSaving(true);
-        setMessage(null);
+        setGeminiMessage(null);
         try {
             const res = await fetch(`${API_BASE}/settings/gemini-key`, {
                 method: 'POST',
@@ -101,14 +103,14 @@ const SettingsView = () => {
             });
             const data = await res.json();
             if (res.ok) {
-                setMessage({ type: 'success', text: data.message });
+                setGeminiMessage({ type: 'success', text: data.message });
                 setGeminiKey('');
                 fetchKeyStatuses();
             } else {
-                setMessage({ type: 'error', text: data.detail || 'Failed to save key' });
+                setGeminiMessage({ type: 'error', text: data.detail || 'Failed to save key' });
             }
         } catch {
-            setMessage({ type: 'error', text: 'Connection error.' });
+            setGeminiMessage({ type: 'error', text: 'Connection error.' });
         } finally {
             setSaving(false);
         }
@@ -117,7 +119,7 @@ const SettingsView = () => {
     const handleSaveGenius = async () => {
         if (!geniusClientId.trim() && !geniusClientSecret.trim() && !geniusAccessToken.trim()) return;
         setSaving(true);
-        setMessage(null);
+        setGeniusMessage(null);
         try {
             const res = await fetch(`${API_BASE}/settings/genius-credentials`, {
                 method: 'POST',
@@ -130,16 +132,16 @@ const SettingsView = () => {
             });
             const data = await res.json();
             if (res.ok) {
-                setMessage({ type: 'success', text: data.message });
+                setGeniusMessage({ type: 'success', text: data.message });
                 setGeniusClientId('');
                 setGeniusClientSecret('');
                 setGeniusAccessToken('');
                 fetchKeyStatuses();
             } else {
-                setMessage({ type: 'error', text: data.detail || 'Failed to save credentials' });
+                setGeniusMessage({ type: 'error', text: data.detail || 'Failed to save credentials' });
             }
         } catch {
-            setMessage({ type: 'error', text: 'Connection error.' });
+            setGeniusMessage({ type: 'error', text: 'Connection error.' });
         } finally {
             setSaving(false);
         }
@@ -147,12 +149,13 @@ const SettingsView = () => {
 
     const handleDeleteGemini = async () => {
         setDeleting(true);
+        setGeminiMessage(null);
         try {
             await fetch(`${API_BASE}/settings/gemini-key`, { method: 'DELETE' });
             fetchKeyStatuses();
-            setMessage({ type: 'success', text: 'Gemini API key removed' });
+            setGeminiMessage({ type: 'success', text: 'Gemini API key removed' });
         } catch {
-            setMessage({ type: 'error', text: 'Failed to remove key.' });
+            setGeminiMessage({ type: 'error', text: 'Failed to remove key.' });
         } finally {
             setDeleting(false);
         }
@@ -160,12 +163,13 @@ const SettingsView = () => {
 
     const handleDeleteGenius = async () => {
         setDeleting(true);
+        setGeniusMessage(null);
         try {
             await fetch(`${API_BASE}/settings/genius-credentials`, { method: 'DELETE' });
             fetchKeyStatuses();
-            setMessage({ type: 'success', text: 'Genius credentials removed' });
+            setGeniusMessage({ type: 'success', text: 'Genius credentials removed' });
         } catch {
-            setMessage({ type: 'error', text: 'Failed to remove credentials.' });
+            setGeniusMessage({ type: 'error', text: 'Failed to remove credentials.' });
         } finally {
             setDeleting(false);
         }
@@ -174,7 +178,7 @@ const SettingsView = () => {
     const handleTestKey = async () => {
         if (!geminiKey.trim()) return;
         setTesting(true);
-        setMessage(null);
+        setGeminiMessage(null);
         try {
             const res = await fetch(`${API_BASE}/settings/test-gemini-key`, {
                 method: 'POST',
@@ -183,12 +187,12 @@ const SettingsView = () => {
             });
             const data = await res.json();
             if (res.ok) {
-                setMessage({ type: 'success', text: data.message });
+                setGeminiMessage({ type: 'success', text: data.message });
             } else {
-                setMessage({ type: 'error', text: data.detail || 'Test failed' });
+                setGeminiMessage({ type: 'error', text: data.detail || 'Test failed' });
             }
         } catch {
-            setMessage({ type: 'error', text: 'Connection error.' });
+            setGeminiMessage({ type: 'error', text: 'Connection error.' });
         } finally {
             setTesting(false);
         }
@@ -197,7 +201,7 @@ const SettingsView = () => {
     const handleTestGeniusKey = async () => {
         if (!geniusAccessToken.trim()) return;
         setTestingGenius(true);
-        setMessage(null);
+        setGeniusMessage(null);
         try {
             const res = await fetch(`${API_BASE}/settings/test-genius-credentials`, {
                 method: 'POST',
@@ -206,12 +210,12 @@ const SettingsView = () => {
             });
             const data = await res.json();
             if (res.ok) {
-                setMessage({ type: 'success', text: data.message });
+                setGeniusMessage({ type: 'success', text: data.message });
             } else {
-                setMessage({ type: 'error', text: data.detail || 'Test failed' });
+                setGeniusMessage({ type: 'error', text: data.detail || 'Test failed' });
             }
         } catch {
-            setMessage({ type: 'error', text: 'Connection error.' });
+            setGeniusMessage({ type: 'error', text: 'Connection error.' });
         } finally {
             setTestingGenius(false);
         }
@@ -238,6 +242,7 @@ const SettingsView = () => {
     const handleLyricsModeToggle = async () => {
         const nextValue = !strictLrc;
         setSavingLyricsMode(true);
+        setSystemMessage(null);
         try {
             const res = await fetch(`${API_BASE}/settings/lyrics-mode`, {
                 method: 'POST',
@@ -247,17 +252,17 @@ const SettingsView = () => {
             const data = await res.json();
             if (res.ok) {
                 setStrictLrc(Boolean(data.strict_lrc));
-                setMessage({
+                setSystemMessage({
                     type: 'success',
                     text: data.strict_lrc
                         ? 'Strict LRC mode enabled.'
                         : 'Unsynced fallback mode enabled.',
                 });
             } else {
-                setMessage({ type: 'error', text: data.detail || 'Failed to save lyrics mode.' });
+                setSystemMessage({ type: 'error', text: data.detail || 'Failed to save lyrics mode.' });
             }
         } catch {
-            setMessage({ type: 'error', text: 'Failed to update lyrics mode.' });
+            setSystemMessage({ type: 'error', text: 'Failed to update lyrics mode.' });
         } finally {
             setSavingLyricsMode(false);
         }
@@ -267,14 +272,15 @@ const SettingsView = () => {
 
     const handleUpdateYtdlp = async () => {
         setUpdatingYtdlp(true);
-        setMessage(null);
+        setSystemMessage(null);
         try {
             const res = await fetch(`${API_BASE}/system/ytdlp/update`, { method: 'POST' });
-            const job = await res.json();
             if (!res.ok) {
-                setMessage({ type: 'error', text: job.detail || 'Failed to queue yt-dlp update.' });
+                const data = await res.json();
+                setSystemMessage({ type: 'error', text: data.detail || 'Failed to queue yt-dlp update.' });
                 return;
             }
+            const job = await res.json();
 
             let terminalJob = null;
             for (let attempt = 0; attempt < 45; attempt += 1) {
@@ -291,12 +297,12 @@ const SettingsView = () => {
             await fetchYtdlpStatus();
 
             if (!terminalJob) {
-                setMessage({ type: 'success', text: 'yt-dlp update queued. Check System status shortly.' });
+                setSystemMessage({ type: 'success', text: 'yt-dlp update queued. Check System status shortly.' });
                 return;
             }
 
             if (terminalJob.status === 'failed') {
-                setMessage({ type: 'error', text: terminalJob.last_error || 'yt-dlp update job failed.' });
+                setSystemMessage({ type: 'error', text: terminalJob.last_error || 'yt-dlp update job failed.' });
                 return;
             }
 
@@ -308,15 +314,15 @@ const SettingsView = () => {
             }
 
             if (result?.status === 'success') {
-                setMessage({ type: 'success', text: `yt-dlp updated successfully (${result.current_version || 'unknown version'}).` });
+                setSystemMessage({ type: 'success', text: `yt-dlp updated successfully (${result.current_version || 'unknown version'}).` });
             } else if (result?.status === 'rolled_back') {
-                setMessage({ type: 'error', text: 'yt-dlp update failed smoke test and was rolled back.' });
+                setSystemMessage({ type: 'error', text: 'yt-dlp update failed smoke test and was rolled back.' });
             } else {
-                setMessage({ type: 'error', text: result?.error || 'yt-dlp update failed.' });
+                setSystemMessage({ type: 'error', text: result?.error || 'yt-dlp update failed.' });
             }
         } catch (err) {
             console.error('Failed to update yt-dlp:', err);
-            setMessage({ type: 'error', text: 'Failed to update yt-dlp.' });
+            setSystemMessage({ type: 'error', text: 'Failed to update yt-dlp.' });
         } finally {
             await fetchYtdlpStatus();
             setUpdatingYtdlp(false);
@@ -330,7 +336,7 @@ const SettingsView = () => {
     ];
 
     return (
-        <>
+        <div className="min-h-full bg-google-bg">
             <header className="px-8 pt-6 pb-0 border-b border-google-surface-high sticky top-0 z-30 bg-google-bg/95 backdrop-blur-md">
                 <div className="max-w-3xl mx-auto">
                     <h2 className="text-3xl font-normal text-google-text tracking-tight mb-6">Settings</h2>
@@ -340,7 +346,7 @@ const SettingsView = () => {
                         {tabs.map(tab => (
                             <button
                                 key={tab.id}
-                                onClick={() => { setActiveTab(tab.id); setMessage(null); }}
+                                onClick={() => { setActiveTab(tab.id); setGeminiMessage(null); setGeniusMessage(null); setSystemMessage(null); }}
                                 className={`pb-3 text-sm font-medium transition-colors relative ${activeTab === tab.id
                                     ? 'text-google-gold'
                                     : 'text-google-text-secondary hover:text-google-text'
@@ -357,15 +363,6 @@ const SettingsView = () => {
             </header>
 
             <main className="max-w-3xl mx-auto py-8 px-8 space-y-8">
-                {message && (
-                    <div className={`px-4 py-3 rounded-xl text-sm mb-6 ${message.type === 'success'
-                        ? 'bg-green-500/10 text-green-300'
-                        : 'bg-red-500/10 text-red-300'
-                        }`}>
-                        {message.text}
-                    </div>
-                )}
-
                 {activeTab === 'api' && (
                     <div className="space-y-6">
                         {/* Gemini Section */}
@@ -383,6 +380,15 @@ const SettingsView = () => {
                                     </p>
                                 </div>
                             </div>
+
+                            {geminiMessage && (
+                                <div className={`mt-4 px-4 py-3 rounded-xl text-sm ${geminiMessage.type === 'success'
+                                    ? 'bg-green-500/10 text-green-300 border border-green-500/20'
+                                    : 'bg-red-500/10 text-red-300 border border-red-500/20'
+                                    }`}>
+                                    {geminiMessage.text}
+                                </div>
+                            )}
 
                             <div className="mt-6 space-y-4">
                                 <KeyStatus status={keyStatus} onDelete={handleDeleteGemini} deleting={deleting} name="Gemini Key" />
@@ -439,6 +445,15 @@ const SettingsView = () => {
                                     </p>
                                 </div>
                             </div>
+
+                            {geniusMessage && (
+                                <div className={`mt-4 px-4 py-3 rounded-xl text-sm ${geniusMessage.type === 'success'
+                                    ? 'bg-green-500/10 text-green-300 border border-green-500/20'
+                                    : 'bg-red-500/10 text-red-300 border border-red-500/20'
+                                    }`}>
+                                    {geniusMessage.text}
+                                </div>
+                            )}
 
                             <div className="mt-6 space-y-4">
                                 <CredentialsStatus status={geniusStatus} onDelete={handleDeleteGenius} deleting={deleting} name="Genius Credentials" />
@@ -520,7 +535,7 @@ const SettingsView = () => {
                             <div className="flex items-start gap-5">
                                 <div className="w-12 h-12 rounded-full bg-google-surface-high flex items-center justify-center flex-shrink-0 text-google-text">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
-                                        <path fillRule="evenodd" d="M12 1.5a3.75 3.75 0 00-3.75 3.75v1.25H7.5A3.75 3.75 0 003.75 10.25v8A3.75 3.75 0 007.5 22h9a3.75 3.75 0 003.75-3.75v-8A3.75 3.75 0 0016.5 6.5h-.75V5.25A3.75 3.75 0 0012 1.5zm2.25 5V5.25a2.25 2.25 0 10-4.5 0v1.25h4.5z" clipRule="evenodd" />
+                                        <path fillRule="evenodd" d="M12 1.5a3.75 3.75 0 00-3.75 3.75v1.25H7.5A3.75 3.75 0 003.75 10.25v8A3.75 3.75 0 007.5 22h9a3.75 3.75 0 007.5-3.75v-8A3.75 3.75 0 0016.5 6.5h-.75V5.25A3.75 3.75 0 0012 1.5zm2.25 5V5.25a2.25 2.25 0 10-4.5 0v1.25h4.5z" clipRule="evenodd" />
                                     </svg>
                                 </div>
                                 <div className="flex-1">
@@ -620,8 +635,11 @@ const SettingsView = () => {
                                                 <p className="text-xs text-google-text-secondary line-clamp-1">{model.description}</p>
                                             </div>
 
-                                            <div className="text-right flex-shrink-0 hidden sm:block">
+                                            <div className="text-right flex-shrink-0 hidden sm:flex flex-col items-end gap-1">
                                                 <p className="text-[10px] text-google-text-secondary font-mono bg-black/20 px-2 py-1 rounded-md">{model.rate_limit}</p>
+                                                {model.pricing && (
+                                                    <p className="text-[10px] text-google-gold/80 font-mono px-2">{model.pricing}</p>
+                                                )}
                                             </div>
                                         </div>
                                     </button>
@@ -646,6 +664,16 @@ const SettingsView = () => {
                                 </p>
                             </div>
                         </div>
+
+                        {systemMessage && (
+                            <div className={`mt-4 px-4 py-3 rounded-xl text-sm ${systemMessage.type === 'success'
+                                ? 'bg-green-500/10 text-green-300 border border-green-500/20'
+                                : 'bg-red-500/10 text-red-300 border border-red-500/20'
+                                }`}>
+                                {systemMessage.text}
+                            </div>
+                        )}
+
                         <div className="mb-4 rounded-2xl border border-white/10 bg-google-surface-high/30 p-4 space-y-3">
                             <div className="flex items-center justify-between gap-4">
                                 <div className="min-w-0">
@@ -682,7 +710,7 @@ const SettingsView = () => {
                 )}
 
             </main>
-        </>
+        </div>
     );
 };
 

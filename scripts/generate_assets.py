@@ -28,7 +28,7 @@ def create_installer_header(output_path):
     Dark minimalist theme (#131314) with subtle gold accent (#E2C286) at bottom
     """
     WIDTH, HEIGHT = 150, 57
-    BG_COLOR = hex_to_rgb("#131314")
+    BG_COLOR = hex_to_rgb("#0F0F10")
     ACCENT_COLOR = hex_to_rgb("#E2C286")
     
     # Create base
@@ -36,19 +36,16 @@ def create_installer_header(output_path):
     draw = ImageDraw.Draw(img)
     
     # Add subtle circuit/tech pattern (very faint lines)
-    # Just draw a few lines for the "tech" feel
-    line_color = (30, 31, 32) # Slightly lighter than BG
+    line_color = (25, 26, 27) # Slightly lighter than BG
     draw.line([(0, 0), (WIDTH, HEIGHT)], fill=line_color, width=1)
     draw.line([(0, HEIGHT), (WIDTH, 0)], fill=line_color, width=1)
-    draw.line([(WIDTH//2, 0), (WIDTH, HEIGHT//2)], fill=line_color, width=1)
     
-    # Add Gold Accent Line at bottom (2px)
-    draw.rectangle([(0, HEIGHT-2), (WIDTH, HEIGHT)], fill=ACCENT_COLOR)
+    # Add Gold Accent Line at bottom (1px for elegance)
+    draw.rectangle([(0, HEIGHT-1), (WIDTH, HEIGHT)], fill=ACCENT_COLOR)
     
     # Add a subtle glow above the gold line
-    # Create a gradient overlay for glow
-    glow = create_gradient(WIDTH, 20, (0,0,0,0), (*ACCENT_COLOR, 100))
-    img.paste(glow, (0, HEIGHT-22), glow)
+    glow = create_gradient(WIDTH, 15, (0,0,0,0), (*ACCENT_COLOR, 40))
+    img.paste(glow, (0, HEIGHT-16), glow)
 
     ensure_dir(output_path)
     img.save(output_path, "BMP")
@@ -60,26 +57,18 @@ def create_installer_sidebar(output_path):
     Dark minimalist theme with vertical gold accent line
     """
     WIDTH, HEIGHT = 164, 314
-    BG_COLOR = hex_to_rgb("#131314")
+    BG_COLOR = hex_to_rgb("#0F0F10")
     ACCENT_COLOR = hex_to_rgb("#E2C286")
     
     img = Image.new('RGB', (WIDTH, HEIGHT), BG_COLOR)
     draw = ImageDraw.Draw(img)
     
     # Subtle gradient background
-    # Darker at top, slightly lighter at bottom
-    gradient_bg = create_gradient(WIDTH, HEIGHT, BG_COLOR, (25, 26, 28))
+    gradient_bg = create_gradient(WIDTH, HEIGHT, BG_COLOR, (15, 15, 16))
     img.paste(gradient_bg, (0,0))
 
-    # Add localized "glow" or "tech" element
-    # Draw a circle glow in corner
-    # glow_circle = Image.new('RGBA', (200, 200), (0,0,0,0))
-    # draw_glow = ImageDraw.Draw(glow_circle)
-    # draw_glow.ellipse([(0,0), (200,200)], fill=(*ACCENT_COLOR, 20))
-    # img.paste(glow_circle, (-50, HEIGHT-100), glow_circle)
-
     # Vertical Accent Line on the right edge (border with content)
-    draw.rectangle([(WIDTH-2, 0), (WIDTH, HEIGHT)], fill=ACCENT_COLOR)
+    draw.rectangle([(WIDTH-1, 0), (WIDTH, HEIGHT)], fill=ACCENT_COLOR)
     
     ensure_dir(output_path)
     img.save(output_path, "BMP")

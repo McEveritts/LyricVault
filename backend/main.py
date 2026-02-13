@@ -131,6 +131,7 @@ class SongResponse(BaseModel):
     source_url: str | None = None
     cover_url: str | None = None
     duration: int | None = None
+    lyrics_source: str | None = None
 
 class JobResponse(BaseModel):
     id: int
@@ -585,7 +586,8 @@ def get_library(request: Request, db: Session = Depends(get_db)):
             "stream_url": stream_url,
             "source_url": song.source_url,
             "cover_url": song.cover_url,
-            "duration": _duration_seconds(song.duration)
+            "duration": _duration_seconds(song.duration),
+            "lyrics_source": song.lyrics_source
         })
     return response
 
@@ -619,7 +621,8 @@ def get_song(song_id: int, request: Request, db: Session = Depends(get_db)):
         "stream_url": stream_url,
         "source_url": song.source_url,
         "cover_url": song.cover_url,
-        "duration": _duration_seconds(song.duration)
+        "duration": _duration_seconds(song.duration),
+        "lyrics_source": song.lyrics_source
     }
 
 # Settings Endpoints

@@ -1,8 +1,10 @@
 !include "MUI2.nsh"
+!include "WinMessages.nsh"
 
-; Define custom colors *before* macros
-!define MUI_BGCOLOR "1E1F20"
+; Define custom colors
+!define MUI_BGCOLOR "131314"
 !define MUI_TEXTCOLOR "E3E3E3"
+!define LV_GOLD "E2C286"
 
 ; Set branding text (small text at bottom left)
 !define MUI_BRANDINGTEXT "LyricVault - Designed by McEveritts"
@@ -20,12 +22,22 @@
 
 !insertmacro MUI_LANGUAGE "English"
 
-; Attempt to enable Dark Mode support for the title bar on Windows 10/11
-Function .onInit
-    ; Dark Mode Explerer theme for controls
+; Custom UI Initialization
+!define MUI_CUSTOMFUNCTION_GUIINIT MyGuiInit
+
+Function MyGuiInit
+    ; Dark Mode Explorer theme for controls
     System::Call 'uxtheme::SetWindowTheme(i $HWNDPARENT, w "DarkMode_Explorer", w "DarkMode_Explorer")'
-    System::Call 'uxtheme::SetWindowTheme(i $HWND, w "DarkMode_Explorer", w "DarkMode_Explorer")'
     
+    ; Apply dark background to the main window
+    SetCtlColors $HWNDPARENT 0x${MUI_TEXTCOLOR} 0x${MUI_BGCOLOR}
+FunctionEnd
+
+Function .onInit
     ; Force window background color
-    SetCtlColors $HWND 0xE3E3E3 0x1E1F20
+    System::Call 'uxtheme::SetWindowTheme(i $HWNDPARENT, w "DarkMode_Explorer", w "DarkMode_Explorer")'
+
+    ; Set the branding text color to gold
+    GetDlgItem $0 $HWNDPARENT 1028
+    SetCtlColors $0 0x${LV_GOLD} transparent
 FunctionEnd

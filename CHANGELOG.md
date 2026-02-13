@@ -2,6 +2,20 @@
 
 All notable changes to the LyricVault project will be documented in this file.
 
+## [0.4.5] - 2026-02-13
+
+### Added
+
+- **Lyrics Overlay Media Controls**: Hover-responsive playback controls (Play/Pause, Skip, Seek) integrated into the full-screen lyrics view.
+- **Activity Log Navigation & Attribution**: Clickable task entries that navigate directly to the library, now featuring distinct source identifiers (**Official Web** vs **AI Generated**).
+- **Lyric Source Identifiers**: Clear badges in the Lyrics Overlay header indicating whether content is Official, AI Researched, or AI Transcribed.
+
+### Fixed
+
+- **Playback Resolution**: Fixed the "spinning" playback issue across all platforms by refining the Content Security Policy (CSP) to permit local media streaming.
+- **UI Responsiveness**: The Now Playing bar now dynamically adjusts its width and centering based on the window size.
+- **Settings & Activity Restoration**: Recovered and refined corrupted views with improved localized feedback and pricing information.
+
 ## [0.4.4] - 2026-02-13
 
 ### Added

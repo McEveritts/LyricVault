@@ -33,19 +33,6 @@ class Song(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, index=True)
     artist_id = Column(Integer, ForeignKey("artists.id"))
-    album_id = Column(Integer, ForeignKey("albums.id"), nullable=True)
-    
-    file_path = Column(String, unique=True)  # Path to local audio file
-    duration = Column(Integer, nullable=True) # In seconds
-    
-    lyrics = Column(Text, nullable=True) # Raw text or LRC content
-    lyrics_synced = Column(Boolean, default=False) # True if LRC
-    
-    source_url = Column(String, nullable=True) # Original YouTube/SoundCloud link
-    platform_id = Column(String, nullable=True) # Spotify/Apple ID if applicable
-    cover_url = Column(String, nullable=True) # URL to album art
-    
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     artist = relationship("Artist", back_populates="songs")
     album = relationship("Album", back_populates="songs")

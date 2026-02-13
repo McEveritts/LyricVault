@@ -105,8 +105,8 @@ const Player = ({
     const progress = (duration > 0) ? (currentTime / duration) * 100 : 0;
 
     return (
-        <div className="fixed bottom-6 left-6 right-6 z-50 animate-in slide-in-from-bottom-20 duration-500">
-            <div className={`max-w-4xl mx-auto bg-google-surface/80 backdrop-blur-3xl rounded-[2.5rem] shadow-2xl border border-white/5 flex flex-col transition-all duration-500 ease-in-out ${showQueue ? 'h-[420px] pb-4' : 'h-[88px]'}`}>
+        <div className="fixed bottom-6 left-6 right-6 z-50 animate-in slide-in-from-bottom-20 duration-500 flex justify-center pointer-events-none">
+            <div className={`w-full max-w-5xl bg-google-surface/80 backdrop-blur-3xl rounded-[2.5rem] shadow-2xl border border-white/5 flex flex-col transition-all duration-500 ease-in-out pointer-events-auto ${showQueue ? 'h-[420px] pb-4' : 'h-[88px]'}`}>
 
                 {/* Integrated Queue Panel */}
                 <div className={`flex-1 overflow-hidden transition-all duration-500 ease-in-out ${showQueue ? 'opacity-100 translate-y-0 p-6' : 'opacity-0 translate-y-4 h-0 pointer-events-none'}`}>

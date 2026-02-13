@@ -597,10 +597,12 @@ class Worker:
             if lyrics and is_synced:
                 song.lyrics = lyrics
                 song.lyrics_synced = True
+                song.lyrics_source = source
                 job.result_json = json.dumps({"status": "found", "synced": True, "source": source})
             elif lyrics and not strict_lrc:
                 song.lyrics = lyrics
                 song.lyrics_synced = False
+                song.lyrics_source = source
                 job.result_json = json.dumps({"status": "found_unsynced", "synced": False, "source": source})
             else:
                 if existing_synced:
