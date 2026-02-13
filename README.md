@@ -1,8 +1,8 @@
-# ![LyricVault Logo](./frontend/public/logo.svg) LyricVault v0.4.6
+# ![LyricVault Logo](./frontend/public/logo.svg) LyricVault v0.4.8
 
 ## The Ultimate Local Music Sanctuary - Powered by AI
 
-[![Version](https://img.shields.io/badge/version-0.4.6-E2C286?style=for-the-badge)](https://github.com/McEveritts/LyricVault)
+[![Version](https://img.shields.io/badge/version-0.4.8-E2C286?style=for-the-badge)](https://github.com/McEveritts/LyricVault)
 [![License: MIT](https://img.shields.io/badge/License-MIT-E2C286?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Build: Portable & Installer](https://img.shields.io/badge/Build-Portable%20%2B%20Installer-2B2D31?style=for-the-badge)](https://github.com/McEveritts/LyricVault/releases)
 
@@ -16,7 +16,13 @@ Instead of relying on streaming metadata that can change over time, LyricVault h
 
 ---
 
-## New in v0.4.6
+## New in v0.4.8
+
+### Security & Reliability
+
+- The local FastAPI backend now uses a per-run desktop token in production to prevent untrusted local processes from calling privileged endpoints.
+- API keys are stored using Windows DPAPI (per-user encryption) instead of reversible base64.
+- Cached audio cleanup targets the real `%APPDATA%\\LyricVault\\downloads` directory to avoid unbounded disk growth.
 
 ### Build & Packaging (Windows)
 
@@ -52,10 +58,10 @@ Instead of relying on streaming metadata that can change over time, LyricVault h
 Get the latest release artifacts from GitHub Releases or build locally.
 
 Option A (Installer):
-Run `LyricVault.Setup.0.4.6.exe`.
+Run `LyricVault.Setup.0.4.8.exe`.
 
 Option B (Portable):
-Run `LyricVault.0.4.6.exe`.
+Run `LyricVault.0.4.8.exe`.
 
 ### 2. Configuration
 
@@ -64,6 +70,10 @@ To enable AI features:
 1. Open Settings.
 2. Add your Google Gemini API key.
 3. Select your preferred Gemini model.
+
+### Updates
+
+- yt-dlp is bundled with the app. Update LyricVault to receive yt-dlp updates.
 
 ---
 
