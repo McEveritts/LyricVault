@@ -18,7 +18,9 @@ class BackendSupervisor {
     final pythonExe = _resolvePythonExe(repoRoot);
     if (pythonExe == null) {
       throw Exception(
-        'Could not find a Python interpreter. Run the desktop setup (or install Python) and retry.',
+        'Could not find a Python interpreter.\n'
+        'Run `scripts/setup-python.ps1` (or `npm run setup:python`) to download the embedded Python, '
+        'or install Python and ensure `python` is available on PATH.',
       );
     }
 
@@ -92,8 +94,28 @@ class BackendSupervisor {
     );
     if (venvPython.existsSync()) return venvPython.path;
 
-    // Fallback: rely on PATH if Python is installed globally.
-    return 'python';
+    final embedPython = File(
+      '${repoRoot.path}${Platform.pathSeparator}python-embed${Platform.pathSeparator}python.exe',
+    );
+    if (embedPython.existsSync()) return embedPython.path;
+
+    if (Platform.isWindows) {
+      return _which('where', 'python.exe') ?? _which('where', 'python');
+    }
+    return _which('which', 'python3') ?? _which('which', 'python');
+  }
+
+  static String? _which(String tool, String command) {
+    try {
+      final result = Process.runSync(tool, [command]);
+      if (result.exitCode != 0) return null;
+      final out = (result.stdout as String).trim();
+      if (out.isEmpty) return null;
+      final first = out.split(RegExp(r'\r?\n')).first.trim();
+      return first.isEmpty ? null : first;
+    } catch (_) {
+      return null;
+    }
   }
 
   static Future<int> _pickPort() async {
