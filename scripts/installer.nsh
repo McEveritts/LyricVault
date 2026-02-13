@@ -10,12 +10,12 @@
 !define MUI_BRANDINGTEXT "LyricVault - Designed by McEveritts"
 
 ; Hook into the Page Show callbacks to theme dynamic elements (like inner dialog 1018)
-!define MUI_PAGE_CUSTOMFUNCTION_SHOW LV_PageShow
-!define MUI_UNPAGE_CUSTOMFUNCTION_SHOW un.LV_PageShow
+; !define MUI_PAGE_CUSTOMFUNCTION_SHOW LV_PageShow
+; !define MUI_UNPAGE_CUSTOMFUNCTION_SHOW un.LV_PageShow
 
 ; Still keep GUIINIT for the main window frame
 !define MUI_CUSTOMFUNCTION_GUIINIT LV_GuiInit
-!define MUI_UNCUSTOMFUNCTION_GUIINIT un.LV_GuiInit
+!define MUI_CUSTOMFUNCTION_UNGUIINIT un.LV_GuiInit
 
 Function LV_ApplyTheme
     ; $0 must hold the HWND to theme
