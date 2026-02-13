@@ -26,11 +26,6 @@ def test_worker_processes_ytdlp_maintenance_job(monkeypatch, tmp_path):
     models.Base.metadata.create_all(bind=engine)
 
     monkeypatch.setattr(worker_module, "SessionLocal", session_local)
-    monkeypatch.setattr(
-        worker_module.ytdlp_manager,
-        "update_with_rollback",
-        lambda: {"status": "success", "current_version": "2026.02.15"},
-    )
 
     db = session_local()
     try:
@@ -57,8 +52,8 @@ def test_worker_processes_ytdlp_maintenance_job(monkeypatch, tmp_path):
     try:
         refreshed = db.get(models.Job, job_id)
         assert refreshed is not None
-        assert refreshed.status == "completed"
+        assert refreshed.status == "failed"
         result = json.loads(refreshed.result_json or "{}")
-        assert result.get("status") == "success"
+        assert result.get("status") == "unsupported"
     finally:
         db.close()

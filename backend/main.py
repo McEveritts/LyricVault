@@ -8,9 +8,15 @@ from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from logging.handlers import RotatingFileHandler
 from urllib.parse import urlparse, urlunparse
+from typing import Optional
 
 # Add current directory to sys.path
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Environment modes
+LYRICVAULT_ENV = os.getenv("LYRICVAULT_ENV", "production")
+IS_DEV = LYRICVAULT_ENV == "development"
+IS_TESTING = os.getenv("LYRICVAULT_TESTING", "0") == "1"
+
 # Use APPDATA for logs to ensure write permissions in installed builds
 APP_DATA = os.environ.get("APPDATA", os.path.expanduser("~"))
 
@@ -18,19 +24,11 @@ LOG_DIR = os.path.join(APP_DATA, "LyricVault", "logs")
 DOWNLOADS_DIR = os.path.join(APP_DATA, "LyricVault", "downloads")
 sys.path.append(BASE_DIR)
 
-# Ensure yt-dlp from user-writable directory is preferred (if present)
-try:
-    app_data = os.environ.get("APPDATA", os.path.expanduser("~"))
-    user_lib_dir = os.path.join(app_data, "LyricVault", "py_libs")
-    if user_lib_dir not in sys.path:
-        sys.path.insert(0, user_lib_dir)
-except Exception as e:
-    pass # Fallback to standard environment
-
 # Configure Logging
 os.makedirs(LOG_DIR, exist_ok=True)
+_log_level = logging.DEBUG if (IS_DEV or os.getenv("LYRICVAULT_LOG_LEVEL", "").lower() == "debug") else logging.INFO
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=_log_level,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[
         RotatingFileHandler(os.path.join(LOG_DIR, "backend.log"), maxBytes=10*1024*1024, backupCount=5),
@@ -41,13 +39,17 @@ logger = logging.getLogger(__name__)
 
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import JSONResponse
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
+import asyncio
 
 import uvicorn
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -61,15 +63,32 @@ from services.ytdlp_manager import ytdlp_manager
 from services import settings_service
 from services.worker import worker
 from utils.lrc_validator import validate_lrc
+from utils.rate_limiter import TokenBucket
+from utils import event_bus
+
+REQUIRE_AUTH = (os.getenv("LYRICVAULT_REQUIRE_AUTH", "0") == "1") or (not IS_DEV and not IS_TESTING)
+API_TOKEN = (os.getenv("LYRICVAULT_API_TOKEN") or "").strip()
+MAX_JSON_BODY_BYTES = int(os.getenv("LYRICVAULT_MAX_BODY_BYTES", "262144"))  # 256 KiB default
+_rate_limiter = TokenBucket()
+
+
+def _safe_detail(public_message: str, exc: Exception) -> str:
+    """Avoid leaking internal exceptions to clients in production."""
+    if IS_DEV or IS_TESTING:
+        return f"{public_message}: {exc}"
+    return public_message
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    worker.start()
+    # Pytest uses TestClient(app) which triggers lifespan; don't start background threads in tests.
+    if not IS_TESTING:
+        worker.start()
     try:
         yield
     finally:
-        worker.stop()
+        if not IS_TESTING:
+            worker.stop()
 
 def resolve_app_version() -> str:
     raw = os.getenv("LYRICVAULT_APP_VERSION") or os.getenv("LYRICVAULT_VERSION")
@@ -91,7 +110,15 @@ def resolve_app_version() -> str:
     return "unknown"
 
 APP_VERSION = resolve_app_version()
-app = FastAPI(title="LyricVault API", version=APP_VERSION, lifespan=lifespan)
+_docs_enabled = IS_DEV or IS_TESTING
+app = FastAPI(
+    title="LyricVault API",
+    version=APP_VERSION,
+    lifespan=lifespan,
+    docs_url="/docs" if _docs_enabled else None,
+    redoc_url="/redoc" if _docs_enabled else None,
+    openapi_url="/openapi.json" if _docs_enabled else None,
+)
 DEFAULT_BACKEND_PORT = 8000
 
 # Mount downloads directory
@@ -99,8 +126,6 @@ os.makedirs(DOWNLOADS_DIR, exist_ok=True)
 app.mount("/stream", StaticFiles(directory=DOWNLOADS_DIR), name="stream")
 
 # CORS Setup
-IS_DEV = os.getenv("LYRICVAULT_ENV", "production") == "development"
-
 allowed_origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
@@ -121,15 +146,105 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+if not IS_DEV:
+    # Defense-in-depth: this is a localhost-only service; reject unexpected Host headers.
+    allowed_hosts = ["127.0.0.1", "localhost"]
+    if IS_TESTING:
+        allowed_hosts.append("testserver")
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
+
 @app.middleware("http")
-async def add_security_headers(request: Request, call_next):
+async def auth_and_security_headers(request: Request, call_next):
+    # Basic request size guard against memory/CPU DoS.
+    if request.method in ("POST", "PUT", "PATCH"):
+        try:
+            length_header = request.headers.get("content-length")
+            if length_header and int(length_header) > MAX_JSON_BODY_BYTES:
+                return JSONResponse(status_code=413, content={"detail": "Request too large"})
+        except Exception:
+            return JSONResponse(status_code=400, content={"detail": "Invalid Content-Length"})
+
+        body = await request.body()
+        if len(body) > MAX_JSON_BODY_BYTES:
+            return JSONResponse(status_code=413, content={"detail": "Request too large"})
+
+    # Authentication: required in production. CORS is not auth; it only affects browsers.
+    if REQUIRE_AUTH:
+        if not API_TOKEN:
+            # Fail closed if Electron didn't inject a token.
+            return JSONResponse(
+                status_code=503,
+                content={"detail": "Backend misconfigured: missing LYRICVAULT_API_TOKEN"},
+            )
+
+        # Allow CORS preflight to proceed without auth.
+        if request.method != "OPTIONS":
+            presented: Optional[str] = request.headers.get("X-LyricVault-Token")
+
+            if not presented or presented != API_TOKEN:
+                return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
+
+            # Best-effort per-token rate limiting for abusive local callers.
+            # Defaults are intentionally conservative to avoid breaking normal UX.
+            path = request.url.path
+            method = request.method
+            # Normalize to a stable prefix so per-song IDs don't bypass limits.
+            parts = [p for p in path.split("/") if p]
+            prefix = "/" + "/".join(parts[:2]) if parts else "/"
+            bucket_key = f"{presented}:{method}:{prefix}"
+            # route class based on prefix
+            if path.startswith("/ingest") and method == "POST":
+                capacity, refill = 15, 15 / 60.0  # 15/min
+            elif path.startswith("/research_lyrics/") and method == "POST":
+                capacity, refill = 10, 10 / 60.0  # 10/min
+            else:
+                capacity, refill = 120, 120 / 60.0  # 120/min
+
+            if not _rate_limiter.allow(bucket_key, capacity=capacity, refill_per_sec=refill, cost=1.0):
+                return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded"})
+
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     return response
 
+
+@app.get("/events")
+async def events(request: Request):
+    """
+    Server-Sent Events stream.
+    """
+    try:
+        sub = event_bus.subscribe(max_queue=200)
+    except Exception:
+        return JSONResponse(status_code=503, content={"detail": "Too many SSE subscribers"})
+
+    async def _gen():
+        # Suggest quick reconnects on transient failures.
+        yield "retry: 3000\n\n"
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    payload = await asyncio.wait_for(sub.queue.get(), timeout=15.0)
+                    yield f"data: {payload}\n\n"
+                except asyncio.TimeoutError:
+                    # Keepalive comment to prevent idle proxy buffering.
+                    yield ": keepalive\n\n"
+        finally:
+            event_bus.unsubscribe(sub)
+
+    headers = {
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        # Disable proxy buffering when applicable.
+        "X-Accel-Buffering": "no",
+    }
+    return StreamingResponse(_gen(), media_type="text/event-stream", headers=headers)
+
 class IngestRequest(BaseModel):
-    url: str
+    url: str = Field(min_length=1, max_length=2048)
     rehydrate: bool = False
     song_id: int | None = None
 
@@ -152,20 +267,20 @@ class JobResponse(BaseModel):
     type: str
 
 class ApiKeyRequest(BaseModel):
-    api_key: str
+    api_key: str = Field(min_length=1, max_length=512)
 
 class GeniusCredentialsRequest(BaseModel):
-    client_id: str | None = None
-    client_secret: str | None = None
-    access_token: str | None = None
+    client_id: str | None = Field(default=None, max_length=512)
+    client_secret: str | None = Field(default=None, max_length=512)
+    access_token: str | None = Field(default=None, max_length=2048)
 
 class ModelRequest(BaseModel):
-    model_id: str
+    model_id: str = Field(min_length=1, max_length=128)
     mode: str = "auto"
     
 class ResearchRequest(BaseModel):
-    model_id: str = "gemini-2.0-flash"
-    mode: str = "auto"
+    model_id: str = Field(default="gemini-2.0-flash", max_length=128)
+    mode: str = Field(default="auto", max_length=32)
 
 
 class LyricsModeRequest(BaseModel):
@@ -292,7 +407,8 @@ def _audio_status(song: models.Song, active_ingest_urls: set[str]) -> str:
 def _stream_url(request: Request, filename: str | None) -> str:
     if not filename:
         return ""
-    return str(request.url_for("stream", path=filename))
+    url = str(request.url_for("stream", path=filename))
+    return url
 
 
 def _enqueue_ingest_job(
@@ -355,52 +471,6 @@ def _enqueue_ingest_job(
     db.refresh(job)
     return job
 
-
-def _enqueue_ytdlp_update_job(db: Session) -> models.Job:
-    idempotency_key = "maintenance_update_ytdlp"
-    existing_job = db.query(models.Job).filter(models.Job.idempotency_key == idempotency_key).first()
-    payload = {"requested_at": datetime.now(timezone.utc).isoformat()}
-
-    if existing_job:
-        if existing_job.status in ("pending", "processing", "retrying"):
-            return existing_job
-        now = datetime.now(timezone.utc)
-        existing_job.type = "maintenance_update_ytdlp"
-        existing_job.title = "Maintenance: Update yt-dlp"
-        existing_job.status = "pending"
-        existing_job.payload = json.dumps(payload)
-        existing_job.result_json = None
-        existing_job.progress = 0
-        existing_job.retry_count = 0
-        existing_job.last_error = None
-        existing_job.worker_id = None
-        existing_job.leased_until = None
-        existing_job.available_at = now
-        existing_job.started_at = None
-        existing_job.completed_at = None
-        db.commit()
-        db.refresh(existing_job)
-        return existing_job
-
-    job = models.Job(
-        type="maintenance_update_ytdlp",
-        title="Maintenance: Update yt-dlp",
-        status="pending",
-        idempotency_key=idempotency_key,
-        payload=json.dumps(payload),
-    )
-    db.add(job)
-    try:
-        db.commit()
-    except IntegrityError:
-        db.rollback()
-        existing_job = db.query(models.Job).filter(models.Job.idempotency_key == idempotency_key).first()
-        if existing_job:
-            return existing_job
-        raise
-    db.refresh(job)
-    return job
-
 @app.post("/ingest", response_model=JobResponse, status_code=202)
 async def ingest_song(request: IngestRequest, db: Session = Depends(get_db)):
     try:
@@ -422,16 +492,23 @@ async def ingest_song(request: IngestRequest, db: Session = Depends(get_db)):
         raise
     except Exception as e:
         logger.error(f"Ingest failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=_safe_detail("Ingest failed", e))
 
 @app.get("/search")
 def search_music(q: str, platform: str = "youtube", social_sources: str | None = None):
     try:
+        q = (q or "").strip()
+        if not q:
+            raise HTTPException(status_code=400, detail="Query cannot be empty")
+        if len(q) > 200:
+            raise HTTPException(status_code=400, detail="Query too long")
+        if platform and len(platform) > 32:
+            raise HTTPException(status_code=400, detail="Invalid platform")
         results = ingestor.search_platforms(q, platform, social_sources=social_sources)
         return results
     except Exception as e:
         logger.error(f"Search failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=_safe_detail("Search failed", e))
 
 @app.post("/research_lyrics/{song_id}")
 async def research_lyrics_manual(song_id: int, request: ResearchRequest, db: Session = Depends(get_db)):
@@ -660,7 +737,7 @@ def save_gemini_key(request: ApiKeyRequest):
     try:
         settings_service.set_gemini_api_key(key)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save API key: {e}")
+        raise HTTPException(status_code=500, detail=_safe_detail("Failed to save API key", e))
     gemini_service.reload()
     return {"status": "saved", "message": "API key validated and saved successfully"}
 
@@ -669,7 +746,7 @@ def delete_gemini_key():
     try:
         settings_service.delete_gemini_api_key()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to remove API key: {e}")
+        raise HTTPException(status_code=500, detail=_safe_detail("Failed to remove API key", e))
     gemini_service.reload()
     return {"status": "deleted", "message": "API key removed"}
 
@@ -708,7 +785,7 @@ def save_genius_credentials(request: GeniusCredentialsRequest):
             access_token=request.access_token
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save Genius credentials: {e}")
+        raise HTTPException(status_code=500, detail=_safe_detail("Failed to save Genius credentials", e))
     return {"status": "saved", "message": "Genius credentials saved successfully"}
 
 @app.delete("/settings/genius-credentials")
@@ -716,7 +793,7 @@ def delete_genius_credentials():
     try:
         settings_service.delete_genius_credentials()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to remove Genius credentials: {e}")
+        raise HTTPException(status_code=500, detail=_safe_detail("Failed to remove Genius credentials", e))
     return {"status": "deleted", "message": "Genius credentials removed"}
 
 @app.post("/settings/test-genius-key")
@@ -745,7 +822,7 @@ def set_lyrics_mode(request: LyricsModeRequest):
     try:
         settings_service.set_strict_lrc_mode(request.strict_lrc)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save lyrics mode: {e}")
+        raise HTTPException(status_code=500, detail=_safe_detail("Failed to save lyrics mode", e))
     return {"status": "saved", "strict_lrc": bool(request.strict_lrc)}
 
 @app.get("/settings/models")
@@ -765,16 +842,18 @@ def set_model(request: ModelRequest):
 
 @app.get("/system/ytdlp")
 def get_ytdlp_system_status():
-    return ytdlp_manager.get_status()
+    status = ytdlp_manager.get_status()
+    status["self_update_allowed"] = False
+    status["self_update_supported"] = False
+    return status
 
 
-@app.post("/system/ytdlp/update", response_model=JobResponse, status_code=202)
-def trigger_ytdlp_update(db: Session = Depends(get_db)):
-    try:
-        return _enqueue_ytdlp_update_job(db)
-    except Exception as e:
-        logger.error(f"Failed to enqueue yt-dlp update: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to queue yt-dlp update")
+@app.post("/system/ytdlp/update", status_code=501)
+def trigger_ytdlp_update():
+    raise HTTPException(
+        status_code=501,
+        detail="yt-dlp self-update is not supported; update LyricVault to get newer yt-dlp.",
+    )
 
 @app.get("/")
 def read_root():
@@ -806,4 +885,10 @@ def resolve_backend_port() -> int:
 
 if __name__ == "__main__":
     reload_enabled = os.getenv("LYRICVAULT_BACKEND_RELOAD", "0") == "1"
-    uvicorn.run("main:app", host="127.0.0.1", port=resolve_backend_port(), reload=reload_enabled)
+    uvicorn.run(
+        "main:app",
+        host="127.0.0.1",
+        port=resolve_backend_port(),
+        reload=reload_enabled,
+        access_log=IS_DEV,
+    )

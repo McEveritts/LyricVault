@@ -4,6 +4,7 @@ import sqlite3
 from datetime import datetime
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy import event
 from .models import Base
 from .migrations import run_migrations
 
@@ -28,10 +29,26 @@ SQLALCHEMY_DATABASE_URL = f"sqlite:///{DATABASE_PATH}"
 logger = logging.getLogger(__name__)
 
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+    SQLALCHEMY_DATABASE_URL,
+    connect_args={
+        "check_same_thread": False,
+        # sqlite3 busy timeout is per-connection; also set a driver-level timeout.
+        "timeout": 30,
+    },
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+@event.listens_for(engine, "connect")
+def _set_sqlite_pragmas(dbapi_connection, connection_record):
+    # Ensure every connection uses WAL and a busy timeout to reduce "database is locked" errors.
+    cursor = dbapi_connection.cursor()
+    try:
+        cursor.execute("PRAGMA journal_mode=WAL;")
+        cursor.execute("PRAGMA busy_timeout=30000;")
+    finally:
+        cursor.close()
 
 def init_db():
     try:
@@ -57,14 +74,7 @@ def init_db():
     # Given the current state, `create_all` is safe as it skips existing tables.
     Base.metadata.create_all(bind=engine)
     
-    # Enable WAL mode for better concurrency
-    try:
-        with engine.connect() as conn:
-            conn.execute(text("PRAGMA journal_mode=WAL;"))
-            conn.execute(text("PRAGMA busy_timeout = 30000;"))
-            conn.commit()
-    except Exception as e:
-         logger.warning(f"Failed to set PRAGMA: {e}")
+    # Per-connection PRAGMAs are set via the engine connect hook above.
 
 def get_db():
     db = SessionLocal()

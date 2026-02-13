@@ -10,6 +10,8 @@ import base64
 import re
 from pathlib import Path
 
+from utils import dpapi
+
 
 def _get_settings_dir() -> Path:
     """Get the LyricVault settings directory in the user's AppData."""
@@ -42,13 +44,31 @@ def _save_settings(settings: dict):
         json.dump(settings, f, indent=2)
 
 
+_DPAPI_PREFIX = "dpapi:"
+
+
 def _obfuscate(value: str) -> str:
-    """Simple base64 obfuscation for at-rest storage (not true encryption)."""
+    """
+    Store secrets securely (Windows): DPAPI per-user encryption.
+
+    Fallback: base64 obfuscation (reversible). This is primarily for
+    non-Windows environments and should not be relied on for security.
+    """
+    try:
+        if dpapi.is_available():
+            return f"{_DPAPI_PREFIX}{dpapi.protect(value)}"
+    except Exception:
+        # Fall through to base64 as a compatibility fallback.
+        pass
+
     return base64.b64encode(value.encode("utf-8")).decode("utf-8")
 
 
 def _deobfuscate(value: str) -> str:
-    """Reverse the base64 obfuscation."""
+    """Reverse the persisted secret encoding."""
+    if value.startswith(_DPAPI_PREFIX):
+        raw = value[len(_DPAPI_PREFIX):]
+        return dpapi.unprotect(raw)
     return base64.b64decode(value.encode("utf-8")).decode("utf-8")
 
 
@@ -143,11 +163,7 @@ def get_genius_credentials() -> dict:
         "client_secret": fetch("genius_client_secret", "GENIUS_CLIENT_SECRET"),
         "access_token": fetch("genius_access_token", "GENIUS_ACCESS_TOKEN"),
     }
-    
-    # Sync to env for syncedlyrics
-    if creds["access_token"]:
-        os.environ["GENIUS_ACCESS_TOKEN"] = creds["access_token"]
-    
+
     return creds
 
 
@@ -163,7 +179,6 @@ def set_genius_credentials(client_id: str = None, client_secret: str = None, acc
         normalized = _normalize_api_key(access_token)
         if normalized:
             settings["genius_access_token"] = _obfuscate(normalized)
-            os.environ["GENIUS_ACCESS_TOKEN"] = normalized
 
     _save_settings(settings)
 

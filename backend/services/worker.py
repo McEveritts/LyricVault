@@ -10,9 +10,9 @@ from database.database import SessionLocal
 from database import models
 from services.ingestor import ingestor
 from services.lyricist import lyricist
-from services.ytdlp_manager import ytdlp_manager
 from services import settings_service
 from utils.lrc_validator import validate_lrc
+from utils.event_bus import publish as publish_event
 
 logger = logging.getLogger(__name__)
 
@@ -35,12 +35,16 @@ class Worker:
         self._thread = None
         self._cleanup_thread = None
         self.lease_duration = timedelta(minutes=5)
+        # Grace window before requeueing stale leases. Helps avoid duplicate processing if a lease
+        # extension is briefly blocked by SQLite locks or a short pause.
+        self.lease_grace = timedelta(seconds=int(os.getenv("LYRICVAULT_LEASE_GRACE_SECONDS", "90")))
         self.heartbeat_interval_seconds = 60
         self.cleanup_interval_seconds = 10 * 60
         self.audio_ttl_seconds = 60 * 60
         self.legacy_lyrics_batch_size = 25
-        backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        self.downloads_dir = os.path.join(backend_dir, "downloads")
+        # Keep downloads dir consistent with backend/main.py and services/ingestor.py (AppData).
+        app_data = os.environ.get("APPDATA", os.path.expanduser("~"))
+        self.downloads_dir = os.path.join(app_data, "LyricVault", "downloads")
         self._audio_extensions = {
             ".mp3", ".m4a", ".wav", ".flac", ".ogg", ".aac", ".opus", ".webm", ".mp4"
         }
@@ -166,11 +170,13 @@ class Worker:
         db = SessionLocal()
         try:
             songs = db.query(models.Song).filter(models.Song.file_path.in_(removed_paths)).all()
+            song_ids = [song.id for song in songs]
             for song in songs:
                 song.file_path = None
             if songs:
                 db.commit()
                 logger.info(f"Marked {len(songs)} song record(s) as expired after cache cleanup.")
+                publish_event("song", {"action": "cache_expired", "song_ids": song_ids})
         except Exception as e:
             db.rollback()
             logger.error(f"Failed to update song cache metadata after cleanup: {e}", exc_info=True)
@@ -181,9 +187,13 @@ class Worker:
         db = SessionLocal()
         try:
             now = datetime.now(timezone.utc)
+            expired_before = now - self.lease_grace
             stale = db.query(models.Job).filter(
                 models.Job.status == "processing",
-                models.Job.leased_until < now
+                models.Job.leased_until.isnot(None),
+                models.Job.leased_until < expired_before,
+                models.Job.updated_at.isnot(None),
+                models.Job.updated_at < expired_before,
             ).all()
             
             for job in stale:
@@ -192,6 +202,21 @@ class Worker:
                 job.worker_id = None
                 job.leased_until = None
             db.commit()
+        finally:
+            db.close()
+
+    def _owns_job(self, job_id: int) -> bool:
+        """Best-effort check that we still own the processing lease for job_id."""
+        db = SessionLocal()
+        try:
+            row = db.execute(
+                text("SELECT status, worker_id FROM jobs WHERE id = :job_id"),
+                {"job_id": job_id},
+            ).first()
+            if not row:
+                return False
+            status, worker_id = row[0], row[1]
+            return status == "processing" and worker_id == self.worker_id
         finally:
             db.close()
 
@@ -290,52 +315,8 @@ class Worker:
             db.close()
 
     def _check_auto_maintenance(self):
-        """Periodically check if yt-dlp needs an update."""
-        try:
-            state = settings_service.get_ytdlp_state()
-            last_checked = state.get("last_checked_at")
-            should_update = False
-            now = datetime.now(timezone.utc)
-
-            if not last_checked:
-                should_update = True
-            else:
-                try:
-                    last_dt = datetime.fromisoformat(last_checked)
-                    # Handle legacy timestamps without execution
-                    if last_dt.tzinfo is None:
-                        last_dt = last_dt.replace(tzinfo=timezone.utc)
-                    
-                    if (now - last_dt) > self.ytdlp_check_interval:
-                        should_update = True
-                except ValueError:
-                    should_update = True
-
-            if should_update:
-                db = SessionLocal()
-                try:
-                    idempotency_key = "maintenance_update_ytdlp"
-                    existing = db.query(models.Job).filter(
-                        models.Job.idempotency_key == idempotency_key,
-                        models.Job.status.in_(["pending", "processing", "retrying"])
-                    ).first()
-
-                    if not existing:
-                        payload = {"requested_at": now.isoformat(), "auto_trigger": True}
-                        job = models.Job(
-                            type="maintenance_update_ytdlp",
-                            title="Auto-Maintenance: Update yt-dlp",
-                            status="pending",
-                            idempotency_key=idempotency_key,
-                            payload=json.dumps(payload),
-                        )
-                        db.add(job)
-                        db.commit()
-                        logger.info("Enqueued auto-maintenance yt-dlp update job.")
-                finally:
-                    db.close()
-        except Exception as e:
-            logger.error(f"Auto-maintenance check failed: {e}")
+        """No-op: yt-dlp updates ship with signed app releases (no runtime self-update)."""
+        return
 
     def _process_one_job(self) -> bool:
         db = SessionLocal()
@@ -381,6 +362,7 @@ class Worker:
                 return False
 
             logger.info(f"[{self.worker_id}] Claimed job {job.id} ({job.type}) - {job.title or 'No Title'}")
+            publish_event("job", {"id": job.id, "type": job.type, "status": job.status, "title": job.title, "progress": job.progress})
 
             heartbeat_stop = threading.Event()
             heartbeat_thread = threading.Thread(
@@ -399,15 +381,36 @@ class Worker:
                 elif job.type == "generate_lyrics":
                     self._handle_lyrics(db, job, payload)
                 elif job.type == "maintenance_update_ytdlp":
-                    self._handle_ytdlp_update(db, job, payload)
+                    job.status = "failed"
+                    job.progress = 100
+                    job.last_error = "yt-dlp self-update is not supported; update LyricVault to get newer yt-dlp."
+                    job.result_json = json.dumps({"status": "unsupported", "error": job.last_error})
                 else:
                     raise ValueError(f"Unknown job type: {job.type}")
 
-                job.status = "completed"
-                job.progress = 100
+                if not self._owns_job(job.id):
+                    # Don't finalize if we lost the lease; another worker may have requeued/claimed it.
+                    logger.warning(
+                        "Lost lease for job %s while processing; skipping finalize to reduce duplicate work.",
+                        job.id,
+                    )
+                    db.rollback()
+                    return True
+
+                if job.status not in ("failed", "completed"):
+                    job.status = "completed"
+                    job.progress = 100
                 job.completed_at = datetime.now(timezone.utc)
             except Exception as e:
-                logger.error(f"Job {job.id} failed: {e}")
+                if not self._owns_job(job.id):
+                    logger.warning(
+                        "Lost lease for job %s after failure (%s); skipping retry bookkeeping.",
+                        job.id,
+                        e,
+                    )
+                    db.rollback()
+                    return True
+                logger.error(f"Job {job.id} failed: {e}", exc_info=True)
                 job.retry_count += 1
                 job.last_error = str(e)
                 
@@ -424,6 +427,21 @@ class Worker:
             job.worker_id = None
             job.leased_until = None
             db.commit()
+            # Publish terminal status and any result_json for the UI to react without polling.
+            publish_event(
+                "job",
+                {
+                    "id": job.id,
+                    "type": job.type,
+                    "status": job.status,
+                    "title": job.title,
+                    "progress": job.progress,
+                    "retry_count": job.retry_count,
+                    "max_retries": job.max_retries,
+                    "last_error": job.last_error,
+                    "result_json": job.result_json,
+                },
+            )
             return True
         finally:
             db.close()
@@ -621,15 +639,5 @@ class Worker:
                         "failure_reason": failure_reason or "not_found",
                     })
             db.commit()
-
-    def _handle_ytdlp_update(self, db: Session, job: models.Job, payload: dict):
-        job.progress = 10
-        db.commit()
-
-        update_result = ytdlp_manager.update_with_rollback()
-
-        job.progress = 100
-        job.result_json = json.dumps(update_result)
-        db.commit()
 
 worker = Worker()

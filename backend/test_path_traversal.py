@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+import os
 
 from fastapi.testclient import TestClient
 
@@ -16,7 +17,8 @@ def _downloads_file() -> Path:
 
 
 def test_stream_mount_uses_backend_downloads_directory():
-    expected = (BACKEND_DIR / "downloads").resolve()
+    app_data = os.environ.get("APPDATA", str(BACKEND_DIR))
+    expected = (Path(app_data) / "LyricVault" / "downloads").resolve()
     assert Path(DOWNLOADS_DIR).resolve() == expected
     assert Path(DOWNLOADS_DIR).resolve() == Path(INGESTOR_DOWNLOADS_DIR).resolve()
 

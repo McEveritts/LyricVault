@@ -1,8 +1,4 @@
-import yt_dlp
-try:
-    import yt_dlp.extractor.extractors
-except ImportError:
-    pass
+from utils.ytdlp_loader import get_yt_dlp
 import os
 import shutil
 import glob
@@ -68,6 +64,12 @@ def get_ydl_opts(download=True):
         'no_warnings': False,
         'logger': YtDlpLogger(),
         'noplaylist': True,
+        # Basic anti-hang defaults for network calls.
+        'socket_timeout': 20,
+        'retries': 3,
+        'fragment_retries': 3,
+        # Avoid runaway downloads (bytes). Audio files larger than this are unusual.
+        'max_filesize': 250 * 1024 * 1024,
     }
     if NODE_PATH:
         opts['javascript_path'] = NODE_PATH
@@ -210,7 +212,14 @@ class IngestionService:
         return None
 
     def download_audio(self, url: str):
+        url = (url or "").strip()
+        parsed = urlparse(url)
+        if parsed.scheme not in {"http", "https"}:
+            raise HTTPException(status_code=400, detail="Invalid URL scheme")
+
         platform = self.parse_url(url)
+        if not platform:
+            raise HTTPException(status_code=400, detail="Unsupported platform")
         
         if platform == "spotify":
             resolved_url = self._resolve_spotify_to_youtube(url)
@@ -221,6 +230,8 @@ class IngestionService:
                 raise HTTPException(status_code=400, detail="Could not resolve Spotify track. Please search for the song manually.")
 
         try:
+            logger.info(f"Starting download for URL: {url}")
+            yt_dlp = get_yt_dlp()
             with yt_dlp.YoutubeDL(get_ydl_opts(download=True)) as ydl:
                 info = ydl.extract_info(url, download=True)
                 filename = ydl.prepare_filename(info)
@@ -230,7 +241,7 @@ class IngestionService:
                 title = info.get('track') or info.get('title')
                 itunes_meta = self.fetch_metadata_itunes(f"{title} {artist}")
 
-                return {
+                result = {
                     "title": title,
                     "artist": artist,
                     "duration": info.get('duration'),
@@ -238,6 +249,8 @@ class IngestionService:
                     "cover_url": itunes_meta.get('cover_url') if (isinstance(itunes_meta, dict) and itunes_meta.get('cover_url')) else info.get('thumbnail'),
                     "album": itunes_meta.get('album') if isinstance(itunes_meta, dict) else None
                 }
+                logger.info(f"Download completed: {final_filename}")
+                return result
         except Exception as e:
             logger.error(f"Error downloading: {e}")
             raise HTTPException(status_code=400, detail=f"Download failed: {str(e)}")
@@ -344,6 +357,7 @@ class IngestionService:
         search_query = f"{prefix}{query}"
         try:
             opts = get_ydl_opts(download=False)
+            yt_dlp = get_yt_dlp()
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(search_query, download=False)
                 if not info or "entries" not in info:
@@ -378,6 +392,7 @@ class IngestionService:
         """
         try:
             opts = get_ydl_opts(download=False)
+            yt_dlp = get_yt_dlp()
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(url, download=False)
         except Exception as e:

@@ -77,7 +77,7 @@ class TestReleaseVerification(unittest.TestCase):
         self.assertFalse(validate_lrc(loop_lrc), "Should reject looping timestamps")
 
     def test_genius_key_persistence(self):
-        """Verify Genius API key logic and env var export."""
+        """Verify Genius credential persistence without leaking to process env."""
         original_creds = get_genius_credentials()
         test_token = "test_genius_token_12345"
         
@@ -89,8 +89,8 @@ class TestReleaseVerification(unittest.TestCase):
             retrieved = get_genius_credentials()
             self.assertEqual(retrieved["access_token"], test_token, "Should retrieve saved token")
             
-            # 3. Verify Env Var export
-            self.assertEqual(os.environ.get("GENIUS_ACCESS_TOKEN"), test_token, "Should export to env var")
+            # 3. Verify we do NOT export secrets to env (child processes inherit env).
+            self.assertIsNone(os.environ.get("GENIUS_ACCESS_TOKEN"), "Should not export token to env var")
             
             # 4. Delete and verify removal behavior
             delete_genius_credentials()

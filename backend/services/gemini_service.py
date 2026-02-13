@@ -14,6 +14,7 @@ Rate limit handling:
 
 import os
 import time
+import logging
 from google import genai
 from google.genai import types
 from .settings_service import (
@@ -22,6 +23,8 @@ from .settings_service import (
     get_stable_gemini_model,
     set_gemini_model,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # ── Rate limit config ─────────────────────────────────────────────────
@@ -117,15 +120,15 @@ class GeminiService:
                     http_options=GENAI_HTTP_OPTIONS,
                 )
                 self._current_key = api_key
-                print("GeminiService initialized successfully")
+                logger.info("GeminiService initialized successfully")
             except Exception as e:
-                print(f"GeminiService init error: {e}")
+                logger.error("GeminiService init error: %s", e, exc_info=True)
                 self.client = None
                 self._current_key = None
         elif not api_key:
             self.client = None
             self._current_key = None
-            print("Warning: No Gemini API key configured. Gemini features disabled.")
+            logger.warning("No Gemini API key configured. Gemini features disabled.")
 
     def reload(self):
         """Reload the client with the latest API key from settings."""
@@ -158,7 +161,7 @@ class GeminiService:
             return True
         except Exception as e:
             error_msg = str(e)
-            print(f"Gemini key validation failed: {error_msg}")
+            logger.warning("Gemini key validation failed: %s", error_msg)
             
             # Extract clean error message for ClientErrors
             if "401" in error_msg or "API key not valid" in error_msg:
@@ -202,8 +205,13 @@ class GeminiService:
                 if is_retryable and attempt < MAX_RETRIES:
                     delay = BASE_DELAY * (2 ** attempt)
                     reason = "Rate limited" if is_rate_limit else "Server error"
-                    print(f"[Gemini] {reason} (attempt {attempt + 1}/{MAX_RETRIES + 1}). "
-                          f"Retrying in {delay}s...")
+                    logger.warning(
+                        "[Gemini] %s (attempt %s/%s). Retrying in %ss...",
+                        reason,
+                        attempt + 1,
+                        MAX_RETRIES + 1,
+                        delay,
+                    )
                     time.sleep(delay)
                 else:
                     raise last_error
@@ -249,13 +257,17 @@ class GeminiService:
             if model_in_use == fallback_model:
                 raise
 
-            print(f"[Gemini] Model '{model_in_use}' unavailable. Falling back to '{fallback_model}'.")
+            logger.warning(
+                "[Gemini] Model '%s' unavailable. Falling back to '%s'.",
+                model_in_use,
+                fallback_model,
+            )
             if status_callback:
                 status_callback(f"Model unavailable. Retrying with {fallback_model}...")
             try:
                 set_gemini_model(fallback_model)
             except Exception as persist_error:
-                print(f"[Gemini] Failed to persist fallback model: {persist_error}")
+                logger.warning("[Gemini] Failed to persist fallback model: %s", persist_error)
 
             response = self._call_with_retry(lambda: call_builder(fallback_model))
             return response, fallback_model
@@ -288,7 +300,11 @@ class GeminiService:
             # Check finish_reason before inspecting text
             if response.candidates and response.candidates[0].finish_reason != "STOP":
                 reason = response.candidates[0].finish_reason if response.candidates else "UNKNOWN"
-                print(f"[Gemini] Request filtered/refused (finish_reason={reason}) for {track_name}")
+                logger.warning(
+                    "[Gemini] Request filtered/refused (finish_reason=%s) for %s",
+                    reason,
+                    track_name,
+                )
                 self._last_failure_reason = "not_found"
                 return None
 
@@ -303,16 +319,16 @@ class GeminiService:
                     "cannot provide",
                 ]
                 if any(phrase in result.lower() for phrase in refusal_phrases):
-                    print(f"Gemini research: Lyrics not found for {track_name}")
+                    logger.info("Gemini research: Lyrics not found for %s", track_name)
                     self._last_failure_reason = "not_found"
                     return None
 
-            print(f"Gemini research: Found lyrics for {track_name}")
+            logger.info("Gemini research: Found lyrics for %s", track_name)
             self._last_failure_reason = None
             return result
 
         except Exception as e:
-            print(f"Gemini research error: {e}")
+            logger.error("Gemini research error: %s", e, exc_info=True)
             self._last_failure_reason = self._classify_failure_reason(str(e))
             return None
 
@@ -326,7 +342,7 @@ class GeminiService:
             return None
 
         if not os.path.exists(audio_file_path):
-            print(f"Audio file not found: {audio_file_path}")
+            logger.warning("Audio file not found for transcription: %s", audio_file_path)
             return None
 
         try:
@@ -335,7 +351,7 @@ class GeminiService:
 
             file_size_mb = len(audio_bytes) / (1024 * 1024)
             if file_size_mb > 20:
-                print(f"Audio file too large for inline processing: {file_size_mb:.1f}MB")
+                logger.warning("Audio file too large for inline processing: %.1fMB", file_size_mb)
                 if status_callback: status_callback(f"Error: Audio too large ({file_size_mb:.1f}MB)")
                 self._last_failure_reason = "source_unavailable"
                 return None
@@ -378,23 +394,27 @@ class GeminiService:
             # Check finish_reason before inspecting text
             if response.candidates and response.candidates[0].finish_reason != "STOP":
                 reason = response.candidates[0].finish_reason if response.candidates else "UNKNOWN"
-                print(f"[Gemini] Transcription filtered (finish_reason={reason}) for {track_name or audio_file_path}")
+                logger.warning(
+                    "[Gemini] Transcription filtered (finish_reason=%s) for %s",
+                    reason,
+                    track_name or audio_file_path,
+                )
                 self._last_failure_reason = "not_found"
                 return None
 
             result = response.text.strip()
 
             if "TRANSCRIPTION_FAILED" in result:
-                print(f"Gemini transcription: Could not transcribe {track_name or audio_file_path}")
+                logger.info("Gemini transcription: Could not transcribe %s", track_name or audio_file_path)
                 self._last_failure_reason = "not_found"
                 return None
 
-            print(f"Gemini transcription: Successfully transcribed {track_name or audio_file_path}")
+            logger.info("Gemini transcription: Successfully transcribed %s", track_name or audio_file_path)
             self._last_failure_reason = None
             return result
 
         except Exception as e:
-            print(f"Gemini transcription error: {e}")
+            logger.error("Gemini transcription error: %s", e, exc_info=True)
             if status_callback: status_callback(f"Error: {str(e)[:50]}...")
             self._last_failure_reason = self._classify_failure_reason(str(e))
             return None

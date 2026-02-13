@@ -9,8 +9,13 @@ Lyric fetching chain:
 
 import syncedlyrics
 import re
+import os
+import logging
+from contextlib import contextmanager
 from .gemini_service import gemini_service
 from utils.lrc_validator import validate_lrc
+
+logger = logging.getLogger(__name__)
 
 class LyricistService:
     def __init__(self):
@@ -76,7 +81,7 @@ class LyricistService:
             source_failures.append(self._last_syncedlyrics_reason)
         
         # === Step 2: Try Gemini AI research ===
-        print(f"syncedlyrics failed or invalid, trying Gemini research...")
+        logger.info("syncedlyrics failed or invalid, trying Gemini research...")
         if status_callback: status_callback("Databases failed. Researching with AI...")
         lyrics = self._try_gemini_research(track_name, artist_name, status_callback)
         if lyrics:
@@ -93,7 +98,7 @@ class LyricistService:
         
         # === Step 3: Try Gemini audio transcription ===
         if file_path:
-            print(f"Gemini research failed, trying audio transcription...")
+            logger.info("Gemini research failed, trying audio transcription...")
             if status_callback: status_callback("Research failed. Listening to audio...")
             lyrics = self._try_gemini_transcription(file_path, track_name, artist_name, status_callback)
             if lyrics:
@@ -117,19 +122,36 @@ class LyricistService:
         elif any(reason == "source_unavailable" for reason in source_failures):
             failure_reason = "source_unavailable"
 
-        print(f"All lyric sources exhausted for: {track_name}")
+        logger.info("All lyric sources exhausted for: %s", track_name)
         return {
             "lyrics": None,
             "source": "none",
             "is_synced": False,
             "failure_reason": failure_reason,
         }
+
+    @staticmethod
+    @contextmanager
+    def _temp_env(var_name: str, value: str | None):
+        """Temporarily set an env var for libraries that only support env-based config."""
+        previous = os.environ.get(var_name)
+        try:
+            if value:
+                os.environ[var_name] = value
+            else:
+                os.environ.pop(var_name, None)
+            yield
+        finally:
+            if previous is None:
+                os.environ.pop(var_name, None)
+            else:
+                os.environ[var_name] = previous
     
     def _try_syncedlyrics(self, track_name: str, artist_name: str, status_callback=None) -> str | None:
         """Try multiple search variations with syncedlyrics"""
         from . import settings_service
-        # Ensure environment variables (GENIUS_ACCESS_TOKEN) are populated from settings
-        settings_service.get_genius_credentials()
+        creds = settings_service.get_genius_credentials()
+        genius_token = creds.get("access_token")
         
         self._last_syncedlyrics_reason = "not_found"
         search_terms = [
@@ -143,19 +165,20 @@ class LyricistService:
         [unique_terms.append(x) for x in search_terms if x not in unique_terms]
 
         for term in unique_terms:
-            print(f"[syncedlyrics] Searching: {term}")
+            logger.info("[syncedlyrics] Searching: %s", term)
             try:
-                lrc = syncedlyrics.search(term)
+                with self._temp_env("GENIUS_ACCESS_TOKEN", genius_token):
+                    lrc = syncedlyrics.search(term)
                 if lrc:
                     # Validate immediately? Or let main loop do it. 
                     # Main loop does it, but we could do it here to retry other terms?
                     # Minimal change: let main loop handle validation failure by proceeding to next source.
                     # But syncedlyrics usually returns one result. If it's invalid, we probably want to try next source, not next term?
                     # Syncedlyrics usually returns good LRC or nothing.
-                    print(f"[syncedlyrics] Found lyrics!")
+                    logger.info("[syncedlyrics] Found lyrics")
                     return lrc
             except Exception as e:
-                print(f"[syncedlyrics] Error: {e}")
+                logger.warning("[syncedlyrics] Error: %s", e)
                 self._last_syncedlyrics_reason = self._classify_source_error(str(e))
                 
         return None
@@ -163,11 +186,11 @@ class LyricistService:
     def _try_gemini_research(self, track_name: str, artist_name: str, status_callback=None, model_id: str | None = None) -> str | None:
         """Try Gemini AI knowledge-based lyric lookup"""
         if not gemini_service.is_available():
-            print("[Gemini] Service not available (API key not set)")
+            logger.info("[Gemini] Service not available (API key not set)")
             self._last_gemini_research_reason = "source_unavailable"
             return None
-            
-        print(f"[Gemini] Researching lyrics for: {track_name} by {artist_name}")
+             
+        logger.info("[Gemini] Researching lyrics for: %s by %s", track_name, artist_name)
         lyrics = gemini_service.research_lyrics(track_name, artist_name, status_callback, model_id=model_id)
         self._last_gemini_research_reason = gemini_service.get_last_failure_reason() or "not_found"
         return lyrics
@@ -175,11 +198,11 @@ class LyricistService:
     def _try_gemini_transcription(self, file_path: str, track_name: str, artist_name: str, status_callback=None, model_id: str | None = None) -> str | None:
         """Try Gemini AI audio transcription"""
         if not gemini_service.is_available():
-            print("[Gemini] Service not available (API key not set)")
+            logger.info("[Gemini] Service not available (API key not set)")
             self._last_gemini_transcription_reason = "source_unavailable"
             return None
-            
-        print(f"[Gemini] Transcribing audio: {file_path}")
+             
+        logger.info("[Gemini] Transcribing audio: %s", file_path)
         lyrics = gemini_service.transcribe_audio(file_path, track_name, artist_name, status_callback, model_id=model_id)
         self._last_gemini_transcription_reason = gemini_service.get_last_failure_reason() or "not_found"
         return lyrics
@@ -198,15 +221,15 @@ class LyricistService:
             headers = {"Authorization": f"Bearer {clean_token}"}
             # lower timeout to fail faster, user is waiting
             res = requests.get("https://api.genius.com/account", headers=headers, timeout=5)
-            
+             
             if res.status_code == 200:
-                print(f"[Lyricist] Genius token validated successfully.")
+                logger.info("[Lyricist] Genius token validated successfully.")
                 return True
-                
-            print(f"[Lyricist] Genius token validation failed. Status: {res.status_code}")
+                 
+            logger.warning("[Lyricist] Genius token validation failed. Status: %s", res.status_code)
             return False
         except Exception as e:
-            print(f"[Lyricist] Genius token validation error: {e}")
+            logger.error("[Lyricist] Genius token validation error: %s", e, exc_info=True)
             return False
 
 lyricist = LyricistService()
