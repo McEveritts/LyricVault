@@ -5,7 +5,8 @@ Desktop (Electron/React) and Mobile (Flutter) development are split to avoid bui
 ## Desktop (current repo folder)
 
 - Path: `Antigravity` (this directory)
-- Versioning: root `package.json` (currently `0.4.8`)
+- Versioning: root `package.json` (currently `0.4.82`)
+- Status: frozen at `v0.4.82` (final Electron/React release)
 - Build: `npm run dev`, `npm run dist`
 
 ## Mobile (separate git worktree)

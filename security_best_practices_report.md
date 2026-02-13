@@ -1,7 +1,7 @@
-# Comprehensive Codebase Audit Report: LyricVault v0.4.8
+# Comprehensive Codebase Audit Report: LyricVault v0.4.82
 
 ## Executive Summary
-LyricVault v0.4.8 has a substantially improved local security posture (localhost-only binding, production token auth, stricter input constraints, reduced polling via SSE, and CI dependency auditing). Runtime `yt-dlp` self-update via `pip install` is not supported (updates are delivered via signed app releases), removing a major supply-chain/code-execution risk from the default desktop threat model. Overall verdict: **Conditional Pass** (ship is reasonable for a desktop-local threat model, but not for hostile multi-tenant machines or “exposed LAN service” deployments without further hardening).
+LyricVault v0.4.82 has a substantially improved local security posture (localhost-only binding, production token auth, stricter input constraints, reduced polling via SSE, and CI dependency auditing). Runtime `yt-dlp` self-update via `pip install` is not supported (updates are delivered via signed app releases), removing a major supply-chain/code-execution risk from the default desktop threat model. Overall verdict: **Conditional Pass** (ship is reasonable for a desktop-local threat model, but not for hostile multi-tenant machines or “exposed LAN service” deployments without further hardening).
 
 ## Critical Vulnerabilities & Blockers (P0)
 | ID | Category | Location | Description | Remediation |

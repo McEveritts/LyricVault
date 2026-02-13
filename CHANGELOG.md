@@ -2,6 +2,13 @@
 
 All notable changes to the LyricVault project will be documented in this file.
 
+## [0.4.82] - 2026-02-13
+
+### Changed
+
+- **Final Electron/React Release**: Desktop (Electron/React) is now frozen at `v0.4.82`. Future client development continues in Flutter (separate mobile app).
+- **Docs**: Added Flutter migration prompt and documented the split desktop/mobile development workflow.
+
 ## [0.4.6] - 2026-02-13
 
 ### Fixed
