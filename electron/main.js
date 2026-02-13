@@ -1,6 +1,7 @@
 const { app, BrowserWindow, dialog, protocol } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
+const crypto = require('crypto');
 const http = require('http');
 const net = require('net');
 
@@ -86,6 +87,7 @@ function registerAppProtocol() {
 // Backend process
 let backendProcess = null;
 let backendPort = 8000;
+const apiToken = crypto.randomBytes(32).toString('hex');
 
 function buildBackendBase(port) {
     return `http://127.0.0.1:${port}`;
@@ -121,8 +123,10 @@ function startBackend(port) {
     const env = { ...process.env };
     env.LYRICVAULT_BACKEND_PORT = String(port);
     env.LYRICVAULT_APP_VERSION = app.getVersion();
+    env.LYRICVAULT_API_TOKEN = apiToken;
     process.env.LYRICVAULT_BACKEND_PORT = String(port);
     process.env.LYRICVAULT_APP_VERSION = app.getVersion();
+    process.env.LYRICVAULT_API_TOKEN = apiToken;
 
     // Set ffmpeg path for packaged app
     const ffmpegDir = getFfmpegDir();
@@ -188,7 +192,11 @@ function waitForBackend(port, maxRetries = 30, interval = 500) {
         let attempts = 0;
         const check = () => {
             attempts++;
-            const req = http.get(`${backendBase}/`, (res) => {
+            const req = http.get(`${backendBase}/`, {
+                headers: {
+                    'X-LyricVault-Token': apiToken,
+                },
+            }, (res) => {
                 if (res.statusCode === 200) {
                     resolve();
                 } else {
@@ -214,6 +222,7 @@ function waitForBackend(port, maxRetries = 30, interval = 500) {
 
 // Window
 let mainWindow = null;
+let didInstallBackendHeaderShim = false;
 
 function createWindow() {
     mainWindow = new BrowserWindow({
@@ -239,6 +248,18 @@ function createWindow() {
         titleBarStyle: 'default',
         icon: getWindowIconPath(),
     });
+
+    // Ensure *all* renderer-originated requests to the backend (fetch/EventSource/media) carry
+    // the per-run token, including <audio>/<video> which cannot set custom headers.
+    if (!didInstallBackendHeaderShim) {
+        didInstallBackendHeaderShim = true;
+        const filter = { urls: [`${buildBackendBase(backendPort)}/*`] };
+        mainWindow.webContents.session.webRequest.onBeforeSendHeaders(filter, (details, callback) => {
+            const headers = details.requestHeaders || {};
+            headers['X-LyricVault-Token'] = apiToken;
+            callback({ requestHeaders: headers });
+        });
+    }
 
     // Load the frontend
     if (isDev) {
