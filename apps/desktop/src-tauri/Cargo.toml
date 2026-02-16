@@ -1,0 +1,29 @@
+[package]
+name = "lyricvault_tauri"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+build = "build.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+lv_core = { path = "../../../crates/lv_core" }
+lv_events = { path = "../../../crates/lv_events" }
+lv_jobs = { path = "../../../crates/lv_jobs" }
+lv_lyrics = { path = "../../../crates/lv_lyrics" }
+lv_media = { path = "../../../crates/lv_media" }
+lv_settings = { path = "../../../crates/lv_settings" }
+lv_types = { path = "../../../crates/lv_types" }
+serde.workspace = true
+serde_json.workspace = true
+tauri = { version = "2", features = [] }
+tauri-plugin-log = "2"
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+urlencoding.workspace = true
+
+[dev-dependencies]
+tempfile = "3.15"
