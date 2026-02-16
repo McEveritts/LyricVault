@@ -26,11 +26,17 @@ jobs:
       - name: Install Node deps (frontend)
         run: npm --prefix frontend ci
 
+      - name: Install Node deps (desktop)
+        run: npm --prefix apps/desktop ci
+
       - name: npm audit (root)
         run: npm audit --audit-level=high
 
       - name: npm audit (frontend)
         run: npm --prefix frontend audit --audit-level=high
+
+      - name: npm audit (desktop)
+        run: npm --prefix apps/desktop audit --audit-level=high
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -42,4 +48,7 @@ jobs:
 
       - name: pip-audit
         run: python -m pip_audit -r backend/requirements.lock.txt
+
+      - name: Verify lockfile sync policy
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/check-python-lock-sync.ps1
 

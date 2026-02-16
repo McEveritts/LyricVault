@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "assets": {
+    "python_embed": {
+      "version": "3.12.7",
+      "url": "https://www.python.org/ftp/python/3.12.7/python-3.12.7-embed-amd64.zip",
+      "sha256": "0D57BB6CB078B74D23DBFE91F77D6780D45BED328911609F1F7EE2BA1606BF44"
+    },
+    "ffmpeg": {
+      "version": "7.1.1-essentials_build",
+      "url": "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-7.1.1-essentials_build.zip",
+      "sha256": "04861D3339C5EBE38B56C19A15CF2C0CC97F5DE4FA8910E4D47E5E6404E4A2D4"
+    },
+    "get_pip": {
+      "version": "2026-02-16",
+      "url": "https://bootstrap.pypa.io/get-pip.py",
+      "sha256": "FEBA1C697DF45BE1B539B40D93C102C9EE9DDE1D966303323B830B06F3FBCA3C"
+    }
+  }
+}
