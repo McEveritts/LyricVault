@@ -1,0 +1,13 @@
+LyricVault 0.5.0-prealpha.2 Release Checksums (SHA256)
+
+This release features the "Living Interface" Design Update (v2) with Stone & Gold aesthetics.
+
+Files:
+LyricVault_0.5.0_x64-setup.exe (NSIS Installer)
+Hash: C773D36A9E9FCDC8CC782C1392613311C25EFCB97EACF884DD2B2CB325128E80
+
+LyricVault_0.5.0_x64_en-US.msi (MSI Installer)
+Hash: 8CFDA29E3657F3244D26C514605CAD92921B4F15472477D8942ED40CE79CC782
+
+LyricVault.Portable.0.5.0-prealpha.2.zip (Portable Package)
+Hash: 684537DC9A7EE0AA7611EED1AC3ADB93BA4E12127FAC72CD892FC58E2AA390EE

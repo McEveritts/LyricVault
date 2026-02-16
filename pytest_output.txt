@@ -1,0 +1,48 @@
+============================= test session starts =============================
+platform win32 -- Python 3.11.9, pytest-9.0.2, pluggy-1.6.0 -- C:\Program Files\Python311\python.exe
+rootdir: C:\Users\armyw\OneDrive\Documents\AntiGravity\Projects\Lyric Vault\LyricVault
+configfile: pytest.ini
+testpaths: backend
+plugins: anyio-4.12.1
+collecting ... collected 38 items
+
+backend/test_api_contract.py::test_cors_allows_desktop_origins PASSED    [  2%]
+backend/test_api_contract.py::test_song_stream_url_uses_request_host PASSED [  5%]
+backend/test_api_contract.py::test_get_song_does_not_auto_enqueue_rehydrate PASSED [  7%]
+backend/test_blocking.py::test_research_lyrics_endpoint_uses_threadpool PASSED [ 10%]
+backend/test_blocking.py::test_research_lyrics_keeps_event_loop_responsive PASSED [ 13%]
+backend/test_ffmpeg_winget.py::test_winget_resolution_skips_invalid_package_names PASSED [ 15%]
+backend/test_gemini_integration.py::test_initialization SKIPPED (Gem...) [ 18%]
+backend/test_gemini_integration.py::test_lyric_research SKIPPED (Gem...) [ 21%]
+backend/test_gemini_integration.py::test_audio_transcription SKIPPED     [ 23%]
+backend/test_path_traversal.py::test_stream_mount_uses_backend_downloads_directory PASSED [ 26%]
+backend/test_path_traversal.py::test_stream_serves_valid_file_from_downloads PASSED [ 28%]
+backend/test_path_traversal.py::test_stream_blocks_path_traversal PASSED [ 31%]
+backend/test_url_parsing.py::test_parse_url_rejects_lookalike_domain PASSED [ 34%]
+backend/test_url_parsing.py::test_parse_url_handles_uppercase_host PASSED [ 36%]
+backend/test_url_parsing.py::test_normalize_url_does_not_apply_youtube_rules_to_lookalike_domain PASSED [ 39%]
+backend/test_worker_heartbeat.py::test_worker_heartbeat_renews_lease PASSED [ 42%]
+backend/tests/test_auth_required.py::test_requires_token_when_enabled PASSED [ 44%]
+backend/tests/test_auth_required.py::test_stream_requires_token_query_param_when_enabled PASSED [ 47%]
+backend/tests/test_auth_required.py::test_events_requires_token_when_enabled PASSED [ 50%]
+backend/tests/test_backend_port_env.py::test_backend_port_defaults_when_env_missing PASSED [ 52%]
+backend/tests/test_backend_port_env.py::test_backend_port_uses_env_value PASSED [ 55%]
+backend/tests/test_backend_port_env.py::test_backend_port_falls_back_on_invalid_env PASSED [ 57%]
+backend/tests/test_backend_port_env.py::test_backend_port_falls_back_on_out_of_range_env PASSED [ 60%]
+backend/tests/test_gemini_model_fallback.py::test_model_fallback_retries_with_stable_model PASSED [ 63%]
+backend/tests/test_gemini_model_fallback.py::test_failure_reason_classification PASSED [ 65%]
+backend/tests/test_jobs_queue_split.py::test_jobs_active_and_history_endpoints_are_strictly_split PASSED [ 68%]
+backend/tests/test_lyric_status_modes.py::test_song_status_unavailable_when_strict_mode_enabled_for_plain_text PASSED [ 71%]
+backend/tests/test_lyric_status_modes.py::test_song_status_unsynced_when_fallback_mode_enabled PASSED [ 73%]
+backend/tests/test_lyric_status_modes.py::test_song_status_ready_for_valid_lrc PASSED [ 76%]
+backend/tests/test_migration_registry.py::test_migration_registry_applies_and_is_idempotent PASSED [ 78%]
+backend/tests/test_migration_requeue.py::test_legacy_migration_queues_jobs_and_deduplicates PASSED [ 81%]
+backend/tests/test_migration_requeue.py::test_legacy_migration_honors_batch_cap PASSED [ 84%]
+backend/tests/test_verify_release.py::TestReleaseVerification::test_genius_key_persistence PASSED [ 86%]
+backend/tests/test_verify_release.py::TestReleaseVerification::test_lrc_validation_strictness PASSED [ 89%]
+backend/tests/test_verify_release.py::TestReleaseVerification::test_lyrics_mode_persistence PASSED [ 92%]
+backend/tests/test_worker_ytdlp_job.py::test_worker_processes_ytdlp_maintenance_job PASSED [ 94%]
+backend/tests/test_ytdlp_manager.py::test_ytdlp_update_is_unsupported PASSED [ 97%]
+backend/tests/test_ytdlp_system_endpoint.py::test_get_ytdlp_status_endpoint PASSED [100%]
+
+======================== 35 passed, 3 skipped in 5.13s ========================
