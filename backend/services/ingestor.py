@@ -16,9 +16,34 @@ NODE_PATH = _find_node_path()
 
 # Configure yt-dlp options
 def _find_ffmpeg_dir():
+    # 1. Explicit env var
     env_dir = os.environ.get("FFMPEG_DIR")
     if env_dir and os.path.isdir(env_dir):
         return env_dir
+    
+    # 2. Tauri Resource Dir (LyricVault Bundle)
+    res_dir = os.environ.get("LYRICVAULT_RESOURCE_DIR")
+    if res_dir:
+        # Check if ffmpeg is in resource_dir/ffmpeg (where we put it in SETUP_PREALPHA)
+        candidate = os.path.join(res_dir, "ffmpeg")
+        if os.path.isdir(candidate):
+            # Check for bin folder inside if it exists
+            bin_dir = os.path.join(candidate, "bin")
+            if os.path.isdir(bin_dir) and os.path.isfile(os.path.join(bin_dir, "ffmpeg.exe")):
+                return bin_dir
+            if os.path.isfile(os.path.join(candidate, "ffmpeg.exe")):
+                return candidate
+
+    # 3. Development CWD paths
+    dev_paths = [
+        os.path.join(os.getcwd(), "ffmpeg"),
+        os.path.join(os.getcwd(), "ffmpeg", "bin"),
+    ]
+    for path in dev_paths:
+        if os.path.isdir(path) and os.path.isfile(os.path.join(path, "ffmpeg.exe")):
+            return path
+
+    # 4. Fallback to common installers (WinGet)
     app_data = os.environ.get("LOCALAPPDATA", "")
     if app_data:
         winget_base = os.path.join(app_data, "Microsoft", "WinGet", "Packages")
@@ -29,6 +54,8 @@ def _find_ffmpeg_dir():
                     for bin_dir in bin_candidates:
                         if os.path.isfile(os.path.join(bin_dir, "ffmpeg.exe")):
                             return bin_dir
+    
+    # 5. System PATH
     if shutil.which("ffmpeg"):
         return os.path.dirname(shutil.which("ffmpeg"))
     return None
