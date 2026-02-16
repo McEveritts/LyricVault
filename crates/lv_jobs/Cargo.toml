@@ -1,0 +1,16 @@
+[package]
+name = "lv_jobs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+chrono.workspace = true
+lv_core = { path = "../lv_core" }
+lv_events = { path = "../lv_events" }
+lv_settings = { path = "../lv_settings" }
+lv_types = { path = "../lv_types" }
+regex.workspace = true
+rusqlite.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
