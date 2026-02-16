@@ -2,6 +2,27 @@
 
 All notable changes to the LyricVault project will be documented in this file.
 
+## [0.5.0-prealpha.4] - 2026-02-16
+
+### Added
+
+- **Version Alignment**: Fixed version drift across `package.json`, `Cargo.toml`, and lockfiles.
+- **Improved Dev DX**: Unified `npm run dev` to use the `run-tauri.ps1` wrapper, ensuring MSVC environment variables (`link.exe`) are correctly loaded for the Rust compiler.
+- New desktop runtime scaffold in `apps/desktop` using **Tauri + SolidJS + Rust**.
+- Rust workspace with modular crates for core DB logic, settings, media, lyrics, and event bus.
+- Typed IPC command surface replacing localhost HTTP for desktop workflows.
+- `lvmedia://` custom protocol for local audio streaming in the desktop renderer.
+- Migration parity matrix at `docs/migration/parity_matrix.md`.
+
+### Changed
+
+- Root development scripts now default to the Tauri desktop runtime (`npm run dev`).
+- Desktop documentation now targets the Rust/Tauri stack as the primary architecture.
+
+### Deprecated
+
+- Electron/React/Python desktop runtime retained as legacy reference only.
+
 ## [0.4.82] - 2026-02-13
 
 ### Changed
