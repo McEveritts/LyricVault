@@ -46,11 +46,7 @@ struct JobIdRequest {
     job_id: i64,
 }
 
-impl AppState {
-    fn emit_event(&self, kind: &str, data: serde_json::Value) {
-        self.event_bus.publish(kind.to_string(), data);
-    }
-}
+
 
 fn map_err(code: &str, error: impl std::fmt::Display) -> AppError {
     AppError::new(code, error.to_string())

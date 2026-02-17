@@ -10,8 +10,10 @@
 - Completed: CI packaging hardening for desktop workflow
 - Completed: P5-P10 Release Readiness (Dependency Audit, CSP, Error Boundaries, Version Sync, Release Manifest)
 - Completed: walkthrough and documentation refresh
+- Completed: `App.tsx` audio element `crossOrigin="anonymous"` fix for Web Audio API
+- Completed: Removed dead code in `main.rs` to clear compiler warnings
 
-## Validation Snapshot (2026-02-16)
+## Validation Snapshot (2026-02-17)
 
 - `npm --prefix apps/desktop run build` ✅
 - `python -m pytest -q` ✅ (`35 passed, 3 skipped`)

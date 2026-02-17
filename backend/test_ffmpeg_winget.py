@@ -27,6 +27,7 @@ def test_winget_resolution_skips_invalid_package_names(monkeypatch, tmp_path):
     _touch_ffmpeg(invalid_bin)
 
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
 
     # Recompute using fresh environment
     importlib.reload(ingestor)

@@ -652,22 +652,22 @@ export default function App() {
             </header>
 
             <div class="song-grid">
-                <For each={sortedSongs()}>
-                  {(song) => (
-                    <article class="song-card" onClick={() => void playSong(song)}>
-                      <div class="song-artwork">
-                        <Show when={song.cover_url} fallback={<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:var(--stone-700); font-size:3rem">🎵</div>}>
-                          <img src={song.cover_url!} />
-                        </Show>
-                        <div class="status-pill" style="position: absolute; top: 1rem; right: 1rem; background: rgba(0,0,0,0.6); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1)">
-                          {song.status === "cached" ? "OFFLINE" : song.status === "re-downloading" ? "DOWNLOADING" : "EXPIRED"}
-                        </div>
-                        <Show when={song.lyrics_status === "unavailable" || song.lyrics_status === "unsynced"}>
-                          <button class="retry-lyrics-btn" onClick={(e) => { e.stopPropagation(); void retryLyrics(song.id); }}>
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 18px"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3L22 8M22 12.5a10 10 0 0 1-18.8 4.3L2 16" /></svg>
-                          </button>
-                        </Show>
+              <For each={sortedSongs()}>
+                {(song) => (
+                  <article class="song-card" onClick={() => void playSong(song)}>
+                    <div class="song-artwork">
+                      <Show when={song.cover_url} fallback={<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:var(--stone-700); font-size:3rem">🎵</div>}>
+                        <img src={song.cover_url!} />
+                      </Show>
+                      <div class="status-pill" style="position: absolute; top: 1rem; right: 1rem; background: rgba(0,0,0,0.6); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1)">
+                        {song.status === "cached" ? "OFFLINE" : song.status === "re-downloading" ? "DOWNLOADING" : "EXPIRED"}
                       </div>
+                      <Show when={song.lyrics_status === "unavailable" || song.lyrics_status === "unsynced"}>
+                        <button class="retry-lyrics-btn" onClick={(e) => { e.stopPropagation(); void retryLyrics(song.id); }}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 18px"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3L22 8M22 12.5a10 10 0 0 1-18.8 4.3L2 16" /></svg>
+                        </button>
+                      </Show>
+                    </div>
                     <div class="song-card-content">
                       <h3>{song.title}</h3>
                       <p class="artist">{song.artist}</p>
@@ -1049,6 +1049,7 @@ export default function App() {
 
       <audio
         ref={audioRef}
+        crossOrigin="anonymous"
         onTimeUpdate={() => setPosition(audioRef?.currentTime || 0)}
         onDurationChange={() => setDuration(audioRef?.duration || 0)}
         onEnded={() => void playNext("ended")}
